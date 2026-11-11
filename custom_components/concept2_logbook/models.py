@@ -134,6 +134,7 @@ class Totals:
     """Aggregates for one machine type, or for all of them."""
 
     lifetime_distance: int = 0
+    lifetime_rest_distance: int = 0
     lifetime_time: float = 0.0
     workout_count: int = 0
     season_distance: int = 0
@@ -191,6 +192,7 @@ def summarize(workouts: list[Workout], now: datetime) -> Summary:
         for key in (ALL, w.type):
             t = totals.setdefault(key, Totals())
             t.lifetime_distance += w.distance
+            t.lifetime_rest_distance += w.rest_distance
             t.lifetime_time += w.time
             t.workout_count += 1
             t.last_workout = w
