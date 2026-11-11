@@ -11,10 +11,14 @@ from homeassistant.components.recorder import Recorder
 from homeassistant.components.recorder.statistics import statistics_during_period
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
+from homeassistant.setup import async_setup_component
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
     async_fire_time_changed,
+)
+from pytest_homeassistant_custom_component.components.diagnostics import (
+    get_diagnostics_for_config_entry,
 )
 from pytest_homeassistant_custom_component.components.recorder.common import (
     async_wait_recording_done,
@@ -22,6 +26,7 @@ from pytest_homeassistant_custom_component.components.recorder.common import (
 from pytest_homeassistant_custom_component.test_util.aiohttp import (
     AiohttpClientMocker,
 )
+from pytest_homeassistant_custom_component.typing import ClientSessionGenerator
 
 from custom_components.concept2_logbook.const import (
     API_BASE,
@@ -34,10 +39,16 @@ from .conftest import USER, result
 RESULTS_URL = f"{API_BASE}/users/me/results"
 
 
-def page(data, current=1, total_pages=1):
+def page(data, current=1, total_pages=1, total=None):
     return {
         "data": data,
-        "meta": {"pagination": {"current_page": current, "total_pages": total_pages}},
+        "meta": {
+            "pagination": {
+                "current_page": current,
+                "total_pages": total_pages,
+                "total": total if total is not None else len(data) * total_pages,
+            }
+        },
     }
 
 
@@ -71,7 +82,15 @@ async def test_setup_sensors_and_pagination(
     aioclient_mock.get(
         RESULTS_URL,
         params={"number": 250, "page": 2},
-        json=page([result(2, "2026-06-01 07:00:00", 8000, 19200, "skierg")], 2, 2),
+        json=page(
+            [
+                result(
+                    2, "2026-06-01 07:00:00", 8000, 19200, "skierg", rest_distance=400
+                )
+            ],
+            2,
+            2,
+        ),
     )
     await _setup(hass, config_entry)
     assert config_entry.state is ConfigEntryState.LOADED
@@ -88,7 +107,12 @@ async def test_setup_sensors_and_pagination(
         hass.states.get("sensor.concept2_test_rower_skierg_season_distance").state
         == "8000"
     )
-    assert hass.states.get("sensor.concept2_test_rower_workouts").state == "2"
+    workouts = hass.states.get("sensor.concept2_test_rower_workouts")
+    assert workouts.state == "2"
+    assert workouts.attributes["logbook_reported_count"] == 2
+    lifetime = hass.states.get("sensor.concept2_test_rower_lifetime_distance")
+    assert lifetime.attributes["rest_distance"] == 400
+    assert lifetime.attributes["work_plus_rest_distance"] == 13400
     last = hass.states.get("sensor.concept2_test_rower_last_workout")
     assert last.state == "2026-11-11T12:00:00+00:00"
     assert last.attributes["pace"] == "2:00.0"
@@ -225,3 +249,35 @@ async def test_refresh_sends_scope(
         == "unavailable"
     )
     assert hass.states.get("sensor.concept2_test_rower_lifetime_distance").state == "0"
+
+
+async def test_diagnostics(
+    hass: HomeAssistant,
+    hass_client: ClientSessionGenerator,
+    setup_credentials: None,
+    config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    aioclient_mock.get(f"{API_BASE}/users/me", json={"data": USER})
+    aioclient_mock.get(
+        RESULTS_URL,
+        json=page(
+            [
+                result(1, "2026-11-10 07:00:00", 5000, 12000, rest_distance=150),
+                result(2, "2026-11-09 07:00:00", 0, 0),
+            ],
+            total=3,
+        ),
+    )
+    assert await async_setup_component(hass, "diagnostics", {})
+    await _setup(hass, config_entry)
+    diag = await get_diagnostics_for_config_entry(hass, hass_client, config_entry)
+    assert diag["logbook_reported_count"] == 3
+    assert diag["cached_count"] == 2
+    assert diag["totals"]["all"] == {
+        "work_distance": 5000,
+        "rest_distance": 150,
+        "workouts": 2,
+    }
+    assert diag["zero_distance_workouts"] == 1
+    assert "token" not in str(diag)

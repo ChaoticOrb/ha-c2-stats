@@ -32,6 +32,9 @@ class Concept2ApiClient:
         self._session = websession
         self._get_token = get_token
         self._base = base_url.rstrip("/")
+        # Result count the API reported on the last results call, for
+        # checking nothing was lost in pagination.
+        self.last_reported_total: int | None = None
 
     async def _get(self, path: str, params: dict[str, Any] | None = None) -> Any:
         token = await self._get_token()
@@ -72,6 +75,8 @@ class Concept2ApiClient:
             data = await self._get("/users/me/results", params)
             results.extend(data.get("data") or [])
             pagination = (data.get("meta") or {}).get("pagination") or {}
+            if params["page"] == 1:
+                self.last_reported_total = pagination.get("total")
             total_pages = pagination.get("total_pages") or 1
             if params["page"] >= total_pages:
                 return results

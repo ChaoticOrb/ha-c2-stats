@@ -80,6 +80,7 @@ class Concept2Coordinator(DataUpdateCoordinator[Concept2Data]):
         self._stat_hours: dict[str, set[datetime]] = {}
         self._stats_hash: str | None = None
         self._loaded = False
+        self.reported_total: int | None = None
 
     async def _async_load(self) -> None:
         stored = await self._store.async_load() or {}
@@ -122,6 +123,15 @@ class Concept2Coordinator(DataUpdateCoordinator[Concept2Data]):
             raw = await self.client.async_get_results()
             self._results = {int(r["id"]): r for r in raw}
             self._last_full_sync = now
+            self.reported_total = self.client.last_reported_total
+            if self.reported_total is not None and self.reported_total != len(
+                self._results
+            ):
+                _LOGGER.warning(
+                    "Concept2 reported %s results but %s were fetched",
+                    self.reported_total,
+                    len(self._results),
+                )
         else:
             assert self._last_sync is not None
             since = dt_util.as_utc(self._last_sync - INCREMENTAL_OVERLAP)

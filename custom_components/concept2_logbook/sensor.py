@@ -276,6 +276,21 @@ class TotalsSensor(Concept2Entity, SensorEntity):
             return None
         return reset_fn(periods)
 
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Breakdown that helps reconcile totals with the Logbook website."""
+        key = self.entity_description.key
+        t = self._totals
+        if key == "lifetime_distance":
+            return {
+                "rest_distance": t.lifetime_rest_distance,
+                "work_plus_rest_distance": t.lifetime_distance
+                + t.lifetime_rest_distance,
+            }
+        if key == "workout_count" and self._machine == ALL:
+            return {"logbook_reported_count": self.coordinator.reported_total}
+        return None
+
 
 class LastWorkoutSensor(Concept2Entity, SensorEntity):
     """A value from the most recent workout on any machine."""
