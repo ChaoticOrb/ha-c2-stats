@@ -1,0 +1,13 @@
+{
+  "domain": "concept2_logbook",
+  "name": "Concept2 Logbook",
+  "codeowners": ["@ChaoticOrb"],
+  "config_flow": true,
+  "dependencies": ["application_credentials", "recorder"],
+  "documentation": "https://github.com/ChaoticOrb/ha-c2-stats",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/ChaoticOrb/ha-c2-stats/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}

@@ -1,0 +1,328 @@
+"""Sensors for Concept2 Logbook."""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any
+
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorEntityDescription,
+    SensorStateClass,
+)
+from homeassistant.const import UnitOfLength, UnitOfPower, UnitOfTime
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.typing import StateType
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
+from .const import DOMAIN, MACHINE_TYPES
+from .coordinator import Concept2ConfigEntry, Concept2Coordinator, Concept2Data
+from .models import ALL, Period, Totals, Workout, format_seconds
+
+PARALLEL_UPDATES = 0
+
+
+@dataclass(frozen=True, kw_only=True)
+class TotalsSensorDescription(SensorEntityDescription):
+    """A sensor computed from a Totals object."""
+
+    value_fn: Callable[[Totals], StateType]
+    reset_fn: Callable[[Period], datetime] | None = None
+    all_only: bool = False
+
+
+@dataclass(frozen=True, kw_only=True)
+class LastWorkoutSensorDescription(SensorEntityDescription):
+    """A sensor computed from the most recent workout."""
+
+    value_fn: Callable[[Workout], StateType | datetime]
+
+
+def _distance(
+    key: str,
+    name: str,
+    value_fn: Callable[[Totals], int],
+    reset_fn: Callable[[Period], datetime] | None = None,
+    enabled: bool = True,
+) -> TotalsSensorDescription:
+    return TotalsSensorDescription(
+        key=key,
+        name=name,
+        native_unit_of_measurement=UnitOfLength.METERS,
+        device_class=SensorDeviceClass.DISTANCE,
+        # TOTAL rather than TOTAL_INCREASING so a deleted result reads as a
+        # decrease instead of a meter reset.
+        state_class=SensorStateClass.TOTAL,
+        suggested_display_precision=0,
+        value_fn=value_fn,
+        reset_fn=reset_fn,
+        entity_registry_enabled_default=enabled,
+    )
+
+
+TOTALS_SENSORS: tuple[TotalsSensorDescription, ...] = (
+    _distance("lifetime_distance", "Lifetime distance", lambda t: t.lifetime_distance),
+    _distance(
+        "season_distance",
+        "Season distance",
+        lambda t: t.season_distance,
+        lambda p: p.season,
+    ),
+    _distance(
+        "year_distance", "Year distance", lambda t: t.year_distance, lambda p: p.year
+    ),
+    _distance(
+        "month_distance",
+        "Month distance",
+        lambda t: t.month_distance,
+        lambda p: p.month,
+    ),
+    _distance(
+        "week_distance", "Week distance", lambda t: t.week_distance, lambda p: p.week
+    ),
+    _distance(
+        "today_distance",
+        "Today distance",
+        lambda t: t.today_distance,
+        lambda p: p.today,
+        enabled=False,
+    ),
+    TotalsSensorDescription(
+        key="workout_count",
+        name="Workouts",
+        native_unit_of_measurement="workouts",
+        state_class=SensorStateClass.TOTAL,
+        value_fn=lambda t: t.workout_count,
+    ),
+    TotalsSensorDescription(
+        key="lifetime_time",
+        name="Lifetime time",
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        suggested_unit_of_measurement=UnitOfTime.HOURS,
+        device_class=SensorDeviceClass.DURATION,
+        state_class=SensorStateClass.TOTAL,
+        suggested_display_precision=1,
+        value_fn=lambda t: round(t.lifetime_time, 1),
+        all_only=True,
+    ),
+)
+
+LAST_WORKOUT_SENSORS: tuple[LastWorkoutSensorDescription, ...] = (
+    LastWorkoutSensorDescription(
+        key="last_workout",
+        name="Last workout",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=lambda w: w.start,
+    ),
+    LastWorkoutSensorDescription(
+        key="last_workout_distance",
+        name="Last workout distance",
+        native_unit_of_measurement=UnitOfLength.METERS,
+        device_class=SensorDeviceClass.DISTANCE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+        value_fn=lambda w: w.distance,
+    ),
+    LastWorkoutSensorDescription(
+        key="last_workout_time",
+        name="Last workout time",
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        device_class=SensorDeviceClass.DURATION,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda w: w.time,
+    ),
+    LastWorkoutSensorDescription(
+        key="last_workout_pace",
+        name="Last workout pace",
+        native_unit_of_measurement="s/500m",
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda w: round(w.pace_500m, 1) if w.pace_500m else None,
+    ),
+    LastWorkoutSensorDescription(
+        key="last_workout_watts",
+        name="Last workout average power",
+        native_unit_of_measurement=UnitOfPower.WATT,
+        device_class=SensorDeviceClass.POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+        value_fn=lambda w: w.average_watts,
+    ),
+    LastWorkoutSensorDescription(
+        key="last_workout_stroke_rate",
+        name="Last workout stroke rate",
+        native_unit_of_measurement="spm",
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda w: w.stroke_rate,
+    ),
+    LastWorkoutSensorDescription(
+        key="last_workout_calories",
+        name="Last workout calories",
+        native_unit_of_measurement="kcal",
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda w: w.calories,
+    ),
+    LastWorkoutSensorDescription(
+        key="last_workout_heart_rate",
+        name="Last workout average heart rate",
+        native_unit_of_measurement="bpm",
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda w: w.heart_rate_avg,
+        entity_registry_enabled_default=False,
+    ),
+)
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: Concept2ConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
+) -> None:
+    """Set up sensors, adding per-machine sensors as new machine types appear."""
+    coordinator = entry.runtime_data
+    known: set[str] = set()
+
+    entities: list[SensorEntity] = [
+        LastWorkoutSensor(coordinator, d) for d in LAST_WORKOUT_SENSORS
+    ]
+
+    @callback
+    def add_machine_sensors() -> None:
+        new: list[SensorEntity] = []
+        for machine in [ALL, *coordinator.data.summary.machine_types]:
+            if machine in known:
+                continue
+            known.add(machine)
+            new.extend(
+                TotalsSensor(coordinator, d, machine)
+                for d in TOTALS_SENSORS
+                if machine == ALL or not d.all_only
+            )
+        if new:
+            async_add_entities(new)
+
+    async_add_entities(entities)
+    add_machine_sensors()
+    entry.async_on_unload(coordinator.async_add_listener(add_machine_sensors))
+
+
+class Concept2Entity(CoordinatorEntity[Concept2Coordinator]):
+    """Base entity, one device per Logbook account."""
+
+    _attr_has_entity_name = True
+    _attr_attribution = "Data from the Concept2 Logbook"
+
+    def __init__(self, coordinator: Concept2Coordinator, key: str) -> None:
+        """Initialize."""
+        super().__init__(coordinator)
+        user_id = coordinator.data.user["id"]
+        self._attr_unique_id = f"{user_id}_{key}"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, str(user_id))},
+            name=f"Concept2 {coordinator.config_entry.title}",
+            manufacturer="Concept2",
+            model="Logbook",
+            entry_type=DeviceEntryType.SERVICE,
+            configuration_url="https://log.concept2.com/log",
+        )
+
+    @property
+    def _data(self) -> Concept2Data:
+        return self.coordinator.data
+
+
+class TotalsSensor(Concept2Entity, SensorEntity):
+    """Aggregate total for all machines or one machine type."""
+
+    entity_description: TotalsSensorDescription
+
+    def __init__(
+        self,
+        coordinator: Concept2Coordinator,
+        description: TotalsSensorDescription,
+        machine: str,
+    ) -> None:
+        """Initialize."""
+        key = description.key if machine == ALL else f"{machine}_{description.key}"
+        super().__init__(coordinator, key)
+        self.entity_description = description
+        self._machine = machine
+        if machine != ALL:
+            self._attr_name = (
+                f"{MACHINE_TYPES.get(machine, machine)} {str(description.name).lower()}"
+            )
+
+    @property
+    def _totals(self) -> Totals:
+        return self._data.summary.totals.get(self._machine) or Totals()
+
+    @property
+    def native_value(self) -> StateType:
+        """Return the value."""
+        return self.entity_description.value_fn(self._totals)
+
+    @property
+    def last_reset(self) -> datetime | None:
+        """Return the start of the current period for resetting totals."""
+        reset_fn = self.entity_description.reset_fn
+        periods = self._data.summary.periods
+        if reset_fn is None or periods is None:
+            return None
+        return reset_fn(periods)
+
+
+class LastWorkoutSensor(Concept2Entity, SensorEntity):
+    """A value from the most recent workout on any machine."""
+
+    entity_description: LastWorkoutSensorDescription
+
+    def __init__(
+        self,
+        coordinator: Concept2Coordinator,
+        description: LastWorkoutSensorDescription,
+    ) -> None:
+        """Initialize."""
+        super().__init__(coordinator, description.key)
+        self.entity_description = description
+
+    @property
+    def _workout(self) -> Workout | None:
+        return self._data.summary.totals[ALL].last_workout
+
+    @property
+    def available(self) -> bool:
+        """Unavailable until there is at least one workout."""
+        return super().available and self._workout is not None
+
+    @property
+    def native_value(self) -> StateType | datetime:
+        """Return the value."""
+        workout = self._workout
+        return self.entity_description.value_fn(workout) if workout else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Full detail of the last workout on the timestamp sensor only."""
+        workout = self._workout
+        if self.entity_description.key != "last_workout" or workout is None:
+            return None
+        return {
+            "result_id": workout.id,
+            "machine": MACHINE_TYPES.get(workout.type, workout.type),
+            "workout_type": workout.workout_type,
+            "distance_m": workout.distance,
+            "time": format_seconds(workout.time),
+            "pace": workout.pace_display,
+            "stroke_rate": workout.stroke_rate,
+            "calories": workout.calories,
+            "drag_factor": workout.drag_factor,
+            "heart_rate_avg": workout.heart_rate_avg,
+            "rest_distance_m": workout.rest_distance or None,
+            "comments": workout.comments,
+        }
