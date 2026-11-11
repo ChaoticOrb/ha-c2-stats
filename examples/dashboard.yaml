@@ -1,0 +1,51 @@
+# Paste into a dashboard via Edit dashboard > Raw configuration editor, or add
+# each card individually. Replace 42 with your Logbook user id (shown in the
+# statistic ids under Developer tools > Statistics) and adjust the sensor
+# entity ids to match yours.
+title: Rowing
+views:
+  - title: Rowing
+    path: rowing
+    cards:
+      - type: entities
+        title: Totals
+        entities:
+          - sensor.concept2_test_rower_lifetime_distance
+          - sensor.concept2_test_rower_season_distance
+          - sensor.concept2_test_rower_month_distance
+          - sensor.concept2_test_rower_week_distance
+          - sensor.concept2_test_rower_workouts
+          - sensor.concept2_test_rower_lifetime_time
+
+      - type: entities
+        title: Last workout
+        entities:
+          - sensor.concept2_test_rower_last_workout
+          - sensor.concept2_test_rower_last_workout_distance
+          - sensor.concept2_test_rower_last_workout_time
+          - sensor.concept2_test_rower_last_workout_pace
+          - sensor.concept2_test_rower_last_workout_average_power
+          - sensor.concept2_test_rower_last_workout_stroke_rate
+
+      # Metres per week across your whole Logbook history.
+      - type: statistics-graph
+        title: Metres per week
+        chart_type: bar
+        period: week
+        days_to_show: 180
+        stat_types:
+          - change
+        entities:
+          - concept2_logbook:distance_42
+
+      # Cumulative metres, one line per machine.
+      - type: statistics-graph
+        title: Lifetime metres
+        chart_type: line
+        period: month
+        days_to_show: 1095
+        stat_types:
+          - sum
+        entities:
+          - concept2_logbook:rower_distance_42
+          - concept2_logbook:skierg_distance_42
