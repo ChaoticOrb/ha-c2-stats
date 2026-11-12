@@ -14,8 +14,14 @@ One device per Logbook account with these sensors:
 | Workouts | lifetime count |
 | Lifetime time | total work time |
 | Last workout | timestamp, with machine, workout type, time, pace, drag factor and comments as attributes |
-| Last workout distance, time, pace, average power, stroke rate, calories | pace is seconds per 500m |
+| Last workout distance, time, pace, average power, stroke rate, calories | time and pace shown as M:SS.t, pace per 500m (per 1000m on the BikeErg) |
 | Last workout average heart rate | disabled by default, only populated if the result has HR data |
+| Workouts this week | resets Monday |
+| Daily streak / Longest daily streak | consecutive days with at least one workout |
+| Weekly streak / Longest weekly streak | consecutive Monday to Sunday weeks with at least one workout |
+| Days since last workout | 0 if you've trained today |
+
+Streaks count every machine together and use Home Assistant's timezone for the calendar day. A current streak isn't broken until a whole day (or week) passes with nothing logged, so a daily streak still shows on a morning before you've trained, as long as you trained yesterday.
 
 For each machine type in your Logbook (RowErg, SkiErg, BikeErg and so on) you also get lifetime, season, year, month and week distance plus a workout count. New machine types get sensors automatically when they first show up.
 
@@ -25,7 +31,7 @@ The integration also writes your full Logbook history into Home Assistant's long
 
 For each machine you get a PB sensor for every standard Concept2 event you have done: 100m, 500m, 1k, 2k, 5k, 6k, 10k, half marathon and marathon (plus 4k, 20k and 100k), and 1, 4, 30 and 60 minutes. A sensor only appears once you have a qualifying result, so you won't see a 100k PB unless you've rowed one.
 
-Only pieces set up on the monitor as that exact distance or time count: a "Single Distance" 2000m piece counts towards the 2k PB, but a 2k inside a 5k, a 2000m Just Row, an interval workout or a manually entered result with no workout type does not. Distance events report your best time in seconds (shown as a duration), time events report your best distance in metres. Attributes give the formatted time, pace, date, and your best for the current season.
+Only pieces set up on the monitor as that exact distance or time count: a "Single Distance" 2000m piece counts towards the 2k PB, but a 2k inside a 5k, a 2000m Just Row, an interval workout or a manually entered result with no workout type does not. Distance events show your best time as M:SS.t (or H:MM:SS.t), time events show your best distance in metres. Attributes give the time in seconds, pace, date, and your best for the current season.
 
 ## How syncing works
 
@@ -57,7 +63,7 @@ Concept2 refresh tokens last a year and are rotated on every refresh, so you sho
 
 - All distance totals and the long-term statistics include rest metres from interval workouts, which matches the Logbook website's lifetime total. The Lifetime distance sensor has `work_distance` and `rest_distance` attributes if you want them separately. The Last workout distance sensor is work distance only.
 - Average power uses Concept2's pace-to-watts formula (2.80 / pace³) and is only reported for RowErg and SkiErg family machines.
-- Pace is a number in seconds per 500m so it can be graphed. The `pace` attribute on the Last workout sensor is formatted as M:SS.t, per 1000m for the BikeErg.
+- Times and paces are shown as text (M:SS.t) so they read the way the monitor shows them. That means Home Assistant draws their history as a timeline rather than a line graph. The raw number is kept in a `seconds` attribute (`seconds_per_500m` for pace) for templates and automations.
 - Results with no timezone recorded are treated as being in Home Assistant's timezone.
 
 ## Development

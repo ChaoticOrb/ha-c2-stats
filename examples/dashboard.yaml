@@ -27,6 +27,16 @@ views:
           - sensor.concept2_test_rower_last_workout_average_power
           - sensor.concept2_test_rower_last_workout_stroke_rate
 
+      - type: entities
+        title: Consistency
+        entities:
+          - sensor.concept2_test_rower_daily_streak
+          - sensor.concept2_test_rower_weekly_streak
+          - sensor.concept2_test_rower_workouts_this_week
+          - sensor.concept2_test_rower_days_since_last_workout
+          - sensor.concept2_test_rower_longest_daily_streak
+          - sensor.concept2_test_rower_longest_weekly_streak
+
       # PB sensors only exist for events you've done; adjust to suit.
       - type: entities
         title: Personal bests

@@ -154,6 +154,7 @@ class Totals:
     month_distance: int = 0
     week_distance: int = 0
     today_distance: int = 0
+    week_count: int = 0
     last_workout: Workout | None = None
 
 
@@ -247,6 +248,54 @@ class PersonalBest:
 
 
 @dataclass(slots=True)
+class Streaks:
+    """Consistency stats across all machines, in local calendar days and weeks.
+
+    A current streak stays alive through today (or this week) even if you
+    haven't trained yet, as long as yesterday (or last week) had a workout.
+    """
+
+    current_daily: int = 0
+    longest_daily: int = 0
+    current_weekly: int = 0
+    longest_weekly: int = 0
+    days_since_last: int | None = None
+
+
+def _runs(values: list[int]) -> tuple[int, int, int]:
+    """Return (longest run, last run, last value) over sorted unique ints."""
+    longest = run = 0
+    prev: int | None = None
+    for v in values:
+        run = run + 1 if prev is not None and v == prev + 1 else 1
+        longest = max(longest, run)
+        prev = v
+    return longest, run, prev if prev is not None else 0
+
+
+def streaks(workouts: list[Workout], now: datetime) -> Streaks:
+    """Compute streaks. `now` must be aware and in the local timezone."""
+    if not workouts:
+        return Streaks()
+    days = sorted({w.start.astimezone(now.tzinfo).date().toordinal() for w in workouts})
+    # Monday-based week number: the ordinal of that week's Monday // 7 works
+    # because ordinal 1 (0001-01-01) is a Monday.
+    weeks = sorted({(d - 1) // 7 for d in days})
+    today = now.date().toordinal()
+    this_week = (today - 1) // 7
+
+    longest_d, last_run_d, last_day = _runs(days)
+    longest_w, last_run_w, last_week = _runs(weeks)
+    return Streaks(
+        current_daily=last_run_d if today - last_day <= 1 else 0,
+        longest_daily=longest_d,
+        current_weekly=last_run_w if this_week - last_week <= 1 else 0,
+        longest_weekly=longest_w,
+        days_since_last=max(today - last_day, 0),
+    )
+
+
+@dataclass(slots=True)
 class Summary:
     """Everything the sensors need."""
 
@@ -254,6 +303,7 @@ class Summary:
     periods: Period | None = None
     # Keyed by (machine type, event key).
     pbs: dict[tuple[str, str], PersonalBest] = field(default_factory=dict)
+    streaks: Streaks = field(default_factory=lambda: Streaks())
 
     @property
     def machine_types(self) -> list[str]:
@@ -282,10 +332,14 @@ def summarize(workouts: list[Workout], now: datetime) -> Summary:
                 t.month_distance += w.total_distance
             if local >= periods.week:
                 t.week_distance += w.total_distance
+                t.week_count += 1
             if local >= periods.today:
                 t.today_distance += w.total_distance
     return Summary(
-        totals=totals, periods=periods, pbs=personal_bests(workouts, periods.season)
+        totals=totals,
+        periods=periods,
+        pbs=personal_bests(workouts, periods.season),
+        streaks=streaks(workouts, now),
     )
 
 

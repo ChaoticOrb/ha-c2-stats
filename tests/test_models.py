@@ -126,3 +126,82 @@ def test_pb_labels() -> None:
     assert PbEvent("distance", 21097).label == "Half marathon"
     assert PbEvent("distance", 42195).label == "Marathon"
     assert PbEvent("time", 1).label == "1 min"
+
+
+def _workouts(dates: list[str]) -> list[Workout]:
+    return [
+        Workout.from_api(result(i, f"{d} 07:00:00", 2000, 4800), TZ)
+        for i, d in enumerate(dates, 1)
+    ]
+
+
+def test_streaks() -> None:
+    from custom_components.concept2_logbook.models import streaks
+
+    now = datetime(2026, 11, 11, 20, tzinfo=TZ)  # Wednesday
+    s = streaks(
+        _workouts(
+            [
+                # 4 day run, 3 weeks earlier
+                "2026-10-12",
+                "2026-10-13",
+                "2026-10-14",
+                "2026-10-15",
+                # Current run: Mon, Tue, Wed (two on Wed)
+                "2026-11-09",
+                "2026-11-10",
+                "2026-11-11",
+                "2026-11-11",
+            ]
+        ),
+        now,
+    )
+    assert s.current_daily == 3
+    assert s.longest_daily == 4
+    # Weeks with workouts: w/c Oct 12, then w/c Nov 9; gap of three weeks.
+    assert s.current_weekly == 1
+    assert s.longest_weekly == 1
+    assert s.days_since_last == 0
+
+
+def test_streak_stays_alive_until_missed() -> None:
+    from custom_components.concept2_logbook.models import streaks
+
+    dates = ["2026-10-26", "2026-11-02", "2026-11-09", "2026-11-10"]
+    # Wednesday, last workout Tuesday: daily streak still alive.
+    s = streaks(_workouts(dates), datetime(2026, 11, 11, 20, tzinfo=TZ))
+    assert s.current_daily == 2
+    assert s.current_weekly == 3
+    assert s.longest_weekly == 3
+    assert s.days_since_last == 1
+    # Thursday: daily streak broken, weekly still alive this week.
+    s = streaks(_workouts(dates), datetime(2026, 11, 12, 20, tzinfo=TZ))
+    assert s.current_daily == 0
+    assert s.current_weekly == 3
+    assert s.days_since_last == 2
+    # Monday of the following week: last week had a workout, still alive.
+    s = streaks(_workouts(dates), datetime(2026, 11, 16, 8, tzinfo=TZ))
+    assert s.current_weekly == 3
+    # A full week missed: broken, longest kept.
+    s = streaks(_workouts(dates), datetime(2026, 11, 23, 8, tzinfo=TZ))
+    assert s.current_weekly == 0
+    assert s.longest_weekly == 3
+
+
+def test_streaks_use_local_dates() -> None:
+    from custom_components.concept2_logbook.models import streaks
+
+    # 23:30 New York on Nov 10 is Nov 11 in UTC; it must count as Nov 10.
+    late = Workout.from_api(
+        result(1, "2026-11-10 23:30:00", 2000, 4800, date_utc="2026-11-11 04:30:00"),
+        TZ,
+    )
+    s = streaks([late], datetime(2026, 11, 11, 20, tzinfo=TZ))
+    assert s.days_since_last == 1
+
+
+def test_streaks_empty() -> None:
+    from custom_components.concept2_logbook.models import streaks
+
+    s = streaks([], datetime(2026, 11, 11, 20, tzinfo=TZ))
+    assert s.current_daily == 0 and s.days_since_last is None

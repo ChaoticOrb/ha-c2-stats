@@ -124,8 +124,16 @@ async def test_setup_sensors_and_pagination(
     lifetime = hass.states.get("sensor.concept2_test_rower_lifetime_distance")
     assert lifetime.attributes["work_distance"] == 13000
     assert lifetime.attributes["rest_distance"] == 400
+    assert hass.states.get("sensor.concept2_test_rower_daily_streak").state == "1"
+    assert hass.states.get("sensor.concept2_test_rower_workouts_this_week").state == "1"
+    assert (
+        hass.states.get("sensor.concept2_test_rower_days_since_last_workout").state
+        == "0"
+    )
     pb = hass.states.get("sensor.concept2_test_rower_rowerg_5k_pb")
-    assert pb.state == "1200.0"
+    assert pb.state == "20:00.0"
+    assert pb.attributes["seconds"] == 1200.0
+    assert "unit_of_measurement" not in pb.attributes
     assert pb.attributes["time"] == "20:00.0"
     assert pb.attributes["pace"] == "2:00.0"
     assert pb.attributes["season_best_time"] == "20:00.0"
@@ -133,9 +141,17 @@ async def test_setup_sensors_and_pagination(
     last = hass.states.get("sensor.concept2_test_rower_last_workout")
     assert last.state == "2026-11-11T12:00:00+00:00"
     assert last.attributes["pace"] == "2:00.0"
-    assert (
-        hass.states.get("sensor.concept2_test_rower_last_workout_pace").state == "120.0"
-    )
+    pace = hass.states.get("sensor.concept2_test_rower_last_workout_pace")
+    assert pace.state == "2:00.0"
+    assert pace.attributes == {
+        **pace.attributes,
+        "per": "500m",
+        "seconds_per_500m": 120.0,
+    }
+    assert "unit_of_measurement" not in pace.attributes
+    time_state = hass.states.get("sensor.concept2_test_rower_last_workout_time")
+    assert time_state.state == "20:00.0"
+    assert time_state.attributes["seconds"] == 1200.0
     assert (
         hass.states.get("sensor.concept2_test_rower_last_workout_stroke_rate").state
         == "24"
