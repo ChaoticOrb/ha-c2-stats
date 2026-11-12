@@ -27,6 +27,7 @@ from .models import (
     PbEvent,
     Period,
     PersonalBest,
+    Streaks,
     Totals,
     Workout,
     format_seconds,
@@ -108,6 +109,15 @@ TOTALS_SENSORS: tuple[TotalsSensorDescription, ...] = (
         value_fn=lambda t: t.workout_count,
     ),
     TotalsSensorDescription(
+        key="week_count",
+        name="Workouts this week",
+        native_unit_of_measurement="workouts",
+        state_class=SensorStateClass.TOTAL,
+        value_fn=lambda t: t.week_count,
+        reset_fn=lambda p: p.week,
+        all_only=True,
+    ),
+    TotalsSensorDescription(
         key="lifetime_time",
         name="Lifetime time",
         native_unit_of_measurement=UnitOfTime.SECONDS,
@@ -117,6 +127,57 @@ TOTALS_SENSORS: tuple[TotalsSensorDescription, ...] = (
         suggested_display_precision=1,
         value_fn=lambda t: round(t.lifetime_time, 1),
         all_only=True,
+    ),
+)
+
+
+@dataclass(frozen=True, kw_only=True)
+class StreakSensorDescription(SensorEntityDescription):
+    """A consistency stat across all machines."""
+
+    value_fn: Callable[[Streaks], StateType]
+
+
+STREAK_SENSORS: tuple[StreakSensorDescription, ...] = (
+    StreakSensorDescription(
+        key="current_daily_streak",
+        name="Daily streak",
+        native_unit_of_measurement="days",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:fire",
+        value_fn=lambda s: s.current_daily,
+    ),
+    StreakSensorDescription(
+        key="longest_daily_streak",
+        name="Longest daily streak",
+        native_unit_of_measurement="days",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:fire",
+        value_fn=lambda s: s.longest_daily,
+    ),
+    StreakSensorDescription(
+        key="current_weekly_streak",
+        name="Weekly streak",
+        native_unit_of_measurement="weeks",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:calendar-check",
+        value_fn=lambda s: s.current_weekly,
+    ),
+    StreakSensorDescription(
+        key="longest_weekly_streak",
+        name="Longest weekly streak",
+        native_unit_of_measurement="weeks",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:calendar-check",
+        value_fn=lambda s: s.longest_weekly,
+    ),
+    StreakSensorDescription(
+        key="days_since_last_workout",
+        name="Days since last workout",
+        native_unit_of_measurement="days",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:calendar-clock",
+        value_fn=lambda s: s.days_since_last,
     ),
 )
 
@@ -198,7 +259,8 @@ async def async_setup_entry(
     known_pbs: set[tuple[str, str]] = set()
 
     entities: list[SensorEntity] = [
-        LastWorkoutSensor(coordinator, d) for d in LAST_WORKOUT_SENSORS
+        *(LastWorkoutSensor(coordinator, d) for d in LAST_WORKOUT_SENSORS),
+        *(StreakSensor(coordinator, d) for d in STREAK_SENSORS),
     ]
 
     @callback
@@ -419,3 +481,21 @@ class PersonalBestSensor(Concept2Entity, SensorEntity):
         attrs["season_best_distance_m"] = season.distance if season else None
         attrs["season_best_date"] = season.start.isoformat() if season else None
         return attrs
+
+
+class StreakSensor(Concept2Entity, SensorEntity):
+    """A streak or consistency value across all machines."""
+
+    entity_description: StreakSensorDescription
+
+    def __init__(
+        self, coordinator: Concept2Coordinator, description: StreakSensorDescription
+    ) -> None:
+        """Initialize."""
+        super().__init__(coordinator, description.key)
+        self.entity_description = description
+
+    @property
+    def native_value(self) -> StateType:
+        """Return the value."""
+        return self.entity_description.value_fn(self._data.summary.streaks)

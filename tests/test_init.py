@@ -124,6 +124,12 @@ async def test_setup_sensors_and_pagination(
     lifetime = hass.states.get("sensor.concept2_test_rower_lifetime_distance")
     assert lifetime.attributes["work_distance"] == 13000
     assert lifetime.attributes["rest_distance"] == 400
+    assert hass.states.get("sensor.concept2_test_rower_daily_streak").state == "1"
+    assert hass.states.get("sensor.concept2_test_rower_workouts_this_week").state == "1"
+    assert (
+        hass.states.get("sensor.concept2_test_rower_days_since_last_workout").state
+        == "0"
+    )
     pb = hass.states.get("sensor.concept2_test_rower_rowerg_5k_pb")
     assert pb.state == "1200.0"
     assert pb.attributes["time"] == "20:00.0"

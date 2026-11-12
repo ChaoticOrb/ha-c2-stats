@@ -16,6 +16,12 @@ One device per Logbook account with these sensors:
 | Last workout | timestamp, with machine, workout type, time, pace, drag factor and comments as attributes |
 | Last workout distance, time, pace, average power, stroke rate, calories | pace is seconds per 500m |
 | Last workout average heart rate | disabled by default, only populated if the result has HR data |
+| Workouts this week | resets Monday |
+| Daily streak / Longest daily streak | consecutive days with at least one workout |
+| Weekly streak / Longest weekly streak | consecutive Monday to Sunday weeks with at least one workout |
+| Days since last workout | 0 if you've trained today |
+
+Streaks count every machine together and use Home Assistant's timezone for the calendar day. A current streak isn't broken until a whole day (or week) passes with nothing logged, so a daily streak still shows on a morning before you've trained, as long as you trained yesterday.
 
 For each machine type in your Logbook (RowErg, SkiErg, BikeErg and so on) you also get lifetime, season, year, month and week distance plus a workout count. New machine types get sensors automatically when they first show up.
 
