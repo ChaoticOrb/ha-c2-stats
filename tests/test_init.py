@@ -76,7 +76,18 @@ async def test_setup_sensors_and_pagination(
         RESULTS_URL,
         params={"number": 250, "page": 1},
         json=page(
-            [result(1, "2026-11-11 07:00:00", 5000, 12000, stroke_rate=24)], 1, 2
+            [
+                result(
+                    1,
+                    "2026-11-11 07:00:00",
+                    5000,
+                    12000,
+                    stroke_rate=24,
+                    workout_type="FixedDistanceSplits",
+                )
+            ],
+            1,
+            2,
         ),
     )
     aioclient_mock.get(
@@ -113,6 +124,12 @@ async def test_setup_sensors_and_pagination(
     lifetime = hass.states.get("sensor.concept2_test_rower_lifetime_distance")
     assert lifetime.attributes["work_distance"] == 13000
     assert lifetime.attributes["rest_distance"] == 400
+    pb = hass.states.get("sensor.concept2_test_rower_rowerg_5k_pb")
+    assert pb.state == "1200.0"
+    assert pb.attributes["time"] == "20:00.0"
+    assert pb.attributes["pace"] == "2:00.0"
+    assert pb.attributes["season_best_time"] == "20:00.0"
+    assert hass.states.get("sensor.concept2_test_rower_skierg_5k_pb") is None
     last = hass.states.get("sensor.concept2_test_rower_last_workout")
     assert last.state == "2026-11-11T12:00:00+00:00"
     assert last.attributes["pace"] == "2:00.0"

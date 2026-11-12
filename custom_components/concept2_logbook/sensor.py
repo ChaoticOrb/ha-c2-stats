@@ -22,7 +22,15 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, MACHINE_TYPES
 from .coordinator import Concept2ConfigEntry, Concept2Coordinator, Concept2Data
-from .models import ALL, Period, Totals, Workout, format_seconds
+from .models import (
+    ALL,
+    PbEvent,
+    Period,
+    PersonalBest,
+    Totals,
+    Workout,
+    format_seconds,
+)
 
 PARALLEL_UPDATES = 0
 
@@ -187,6 +195,7 @@ async def async_setup_entry(
     """Set up sensors, adding per-machine sensors as new machine types appear."""
     coordinator = entry.runtime_data
     known: set[str] = set()
+    known_pbs: set[tuple[str, str]] = set()
 
     entities: list[SensorEntity] = [
         LastWorkoutSensor(coordinator, d) for d in LAST_WORKOUT_SENSORS
@@ -204,6 +213,10 @@ async def async_setup_entry(
                 for d in TOTALS_SENSORS
                 if machine == ALL or not d.all_only
             )
+        for key, pb in coordinator.data.summary.pbs.items():
+            if key not in known_pbs:
+                known_pbs.add(key)
+                new.append(PersonalBestSensor(coordinator, key[0], pb.event))
         if new:
             async_add_entities(new)
 
@@ -340,3 +353,69 @@ class LastWorkoutSensor(Concept2Entity, SensorEntity):
             "rest_distance_m": workout.rest_distance or None,
             "comments": workout.comments,
         }
+
+
+class PersonalBestSensor(Concept2Entity, SensorEntity):
+    """Best result for a standard event on one machine.
+
+    Distance events report the best time in seconds. Time events report the
+    best distance in metres. Only pieces set up as that exact distance or time
+    count.
+    """
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:trophy"
+
+    def __init__(
+        self, coordinator: Concept2Coordinator, machine: str, event: PbEvent
+    ) -> None:
+        """Initialize."""
+        super().__init__(coordinator, f"{machine}_pb_{event.key}")
+        self._key = (machine, event.key)
+        self._event = event
+        self._attr_name = f"{MACHINE_TYPES.get(machine, machine)} {event.label} PB"
+        if event.kind == "distance":
+            self._attr_device_class = SensorDeviceClass.DURATION
+            self._attr_native_unit_of_measurement = UnitOfTime.SECONDS
+            self._attr_suggested_display_precision = 1
+        else:
+            self._attr_device_class = SensorDeviceClass.DISTANCE
+            self._attr_native_unit_of_measurement = UnitOfLength.METERS
+            self._attr_suggested_display_precision = 0
+
+    @property
+    def _pb(self) -> PersonalBest | None:
+        return self._data.summary.pbs.get(self._key)
+
+    @property
+    def available(self) -> bool:
+        """Unavailable if the qualifying results were deleted."""
+        return super().available and self._pb is not None
+
+    def _value(self, w: Workout) -> float:
+        return w.time if self._event.kind == "distance" else w.distance
+
+    @property
+    def native_value(self) -> StateType:
+        """Return the all-time best."""
+        pb = self._pb
+        return self._value(pb.best) if pb else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Formatted result, date and the current season's best."""
+        pb = self._pb
+        if pb is None:
+            return None
+        attrs: dict[str, Any] = {
+            "time": format_seconds(pb.best.time),
+            "distance_m": pb.best.distance,
+            "pace": pb.best.pace_display,
+            "date": pb.best.start.isoformat(),
+            "result_id": pb.best.id,
+        }
+        season = pb.season_best
+        attrs["season_best_time"] = format_seconds(season.time) if season else None
+        attrs["season_best_distance_m"] = season.distance if season else None
+        attrs["season_best_date"] = season.start.isoformat() if season else None
+        return attrs

@@ -81,3 +81,48 @@ def test_summarize_periods() -> None:
     assert summary.machine_types == ["rower", "skierg"]
     assert summary.totals["skierg"].lifetime_distance == 8500
     assert summary.totals["rower"].season_distance == 18000
+
+
+def test_personal_bests() -> None:
+    now = datetime(2026, 11, 11, 12, tzinfo=TZ)
+    fd, ft = "FixedDistanceSplits", "FixedTimeSplits"
+    raw = [
+        result(1, "2025-03-01 07:00:00", 2000, 4500, workout_type=fd),  # 7:30.0
+        result(2, "2026-06-01 07:00:00", 2000, 4650, workout_type=fd),  # season
+        result(3, "2026-07-01 07:00:00", 2000, 4600, workout_type=fd),  # season best
+        # Not set pieces, so never count even though faster.
+        result(4, "2026-08-01 07:00:00", 2000, 4000, workout_type="JustRow"),
+        result(
+            5, "2026-08-02 07:00:00", 2000, 4000, workout_type="FixedDistanceInterval"
+        ),
+        result(6, "2026-08-03 07:00:00", 2000, 4000, workout_type="unknown"),
+        # 30 minute pieces.
+        result(7, "2026-09-01 07:00:00", 7500, 18000, workout_type=ft),
+        result(8, "2026-09-08 07:00:00", 7700, 18000, workout_type=ft),
+        # A 31 minute piece is not a 30 minute PB.
+        result(9, "2026-09-09 07:00:00", 9000, 18600, workout_type=ft),
+        # Same event on another machine is separate.
+        result(10, "2026-09-10 07:00:00", 2000, 5000, "skierg", workout_type=fd),
+        # Non-standard distance gets no PB.
+        result(11, "2026-09-11 07:00:00", 3000, 7000, workout_type=fd),
+    ]
+    pbs = summarize([Workout.from_api(r, TZ) for r in raw], now).pbs
+    assert set(pbs) == {("rower", "2000m"), ("rower", "30min"), ("skierg", "2000m")}
+    two_k = pbs[("rower", "2000m")]
+    assert two_k.best.id == 1
+    assert two_k.season_best.id == 3
+    assert two_k.event.label == "2k"
+    thirty = pbs[("rower", "30min")]
+    assert thirty.best.id == 8
+    assert thirty.event.label == "30 min"
+    assert pbs[("skierg", "2000m")].best.id == 10
+
+
+def test_pb_labels() -> None:
+    from custom_components.concept2_logbook.models import PbEvent
+
+    assert PbEvent("distance", 500).label == "500m"
+    assert PbEvent("distance", 10000).label == "10k"
+    assert PbEvent("distance", 21097).label == "Half marathon"
+    assert PbEvent("distance", 42195).label == "Marathon"
+    assert PbEvent("time", 1).label == "1 min"

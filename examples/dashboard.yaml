@@ -27,6 +27,15 @@ views:
           - sensor.concept2_test_rower_last_workout_average_power
           - sensor.concept2_test_rower_last_workout_stroke_rate
 
+      # PB sensors only exist for events you've done; adjust to suit.
+      - type: entities
+        title: Personal bests
+        entities:
+          - sensor.concept2_test_rower_rowerg_500m_pb
+          - sensor.concept2_test_rower_rowerg_2k_pb
+          - sensor.concept2_test_rower_rowerg_5k_pb
+          - sensor.concept2_test_rower_rowerg_30_min_pb
+
       # Metres per week across your whole Logbook history.
       - type: statistics-graph
         title: Metres per week

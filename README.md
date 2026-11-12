@@ -21,6 +21,12 @@ For each machine type in your Logbook (RowErg, SkiErg, BikeErg and so on) you al
 
 The integration also writes your full Logbook history into Home Assistant's long-term statistics as `concept2_logbook:distance_<user id>` (all machines) and `concept2_logbook:<machine>_distance_<user id>`. That means the built-in **Statistics graph** card can chart metres per day, week or month going back to your first workout, not just from the day you installed the integration. See [`examples/dashboard.yaml`](examples/dashboard.yaml) for a ready-made dashboard.
 
+### Personal bests
+
+For each machine you get a PB sensor for every standard Concept2 event you have done: 100m, 500m, 1k, 2k, 5k, 6k, 10k, half marathon and marathon (plus 4k, 20k and 100k), and 1, 4, 30 and 60 minutes. A sensor only appears once you have a qualifying result, so you won't see a 100k PB unless you've rowed one.
+
+Only pieces set up on the monitor as that exact distance or time count: a "Single Distance" 2000m piece counts towards the 2k PB, but a 2k inside a 5k, a 2000m Just Row, an interval workout or a manually entered result with no workout type does not. Distance events report your best time in seconds (shown as a duration), time events report your best distance in metres. Attributes give the formatted time, pace, date, and your best for the current season.
+
 ## How syncing works
 
 Every 30 minutes the integration asks the Logbook only for results created or updated since the last check. Once a day it pulls the full list so deleted results drop out. Results are cached in `.storage/concept2_logbook.<entry id>`, so a Concept2 outage leaves the last known values in place instead of making everything unavailable.
