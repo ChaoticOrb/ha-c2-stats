@@ -62,20 +62,22 @@ def test_summarize_periods() -> None:
         result(1, "2026-11-11 07:00:00", 5000, 12000),  # today
         result(2, "2026-11-09 07:00:00", 6000, 14400),  # Monday, this week
         result(3, "2026-11-02 07:00:00", 7000, 16800),  # this month
-        result(4, "2026-06-01 07:00:00", 8000, 19200, "skierg"),  # this season
+        # this season, with rest metres that count towards totals
+        result(4, "2026-06-01 07:00:00", 8000, 19200, "skierg", rest_distance=500),
         result(5, "2026-02-01 07:00:00", 9000, 21600),  # this year, last season
         result(6, "2025-12-01 07:00:00", 10000, 24000),  # last year
     ]
     summary = summarize([Workout.from_api(r, TZ) for r in raw], now)
     t = summary.totals[ALL]
-    assert t.lifetime_distance == 45000
+    assert t.lifetime_distance == 45500
+    assert t.lifetime_rest_distance == 500
     assert t.workout_count == 6
     assert t.today_distance == 5000
     assert t.week_distance == 11000
     assert t.month_distance == 18000
-    assert t.season_distance == 26000
-    assert t.year_distance == 35000
+    assert t.season_distance == 26500
+    assert t.year_distance == 35500
     assert t.last_workout.id == 1
     assert summary.machine_types == ["rower", "skierg"]
-    assert summary.totals["skierg"].lifetime_distance == 8000
+    assert summary.totals["skierg"].lifetime_distance == 8500
     assert summary.totals["rower"].season_distance == 18000

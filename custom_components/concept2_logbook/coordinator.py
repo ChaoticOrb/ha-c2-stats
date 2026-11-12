@@ -172,7 +172,10 @@ class Concept2Coordinator(DataUpdateCoordinator[Concept2Data]):
 
         digest = hashlib.sha256(
             json.dumps(
-                [[w.id, w.start.isoformat(), w.type, w.distance] for w in workouts]
+                [
+                    [w.id, w.start.isoformat(), w.type, w.total_distance]
+                    for w in workouts
+                ]
             ).encode()
         ).hexdigest()
         if digest != self._stats_hash:

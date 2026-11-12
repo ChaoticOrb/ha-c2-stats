@@ -283,9 +283,8 @@ class TotalsSensor(Concept2Entity, SensorEntity):
         t = self._totals
         if key == "lifetime_distance":
             return {
+                "work_distance": t.lifetime_distance - t.lifetime_rest_distance,
                 "rest_distance": t.lifetime_rest_distance,
-                "work_plus_rest_distance": t.lifetime_distance
-                + t.lifetime_rest_distance,
             }
         if key == "workout_count" and self._machine == ALL:
             return {"logbook_reported_count": self.coordinator.reported_total}

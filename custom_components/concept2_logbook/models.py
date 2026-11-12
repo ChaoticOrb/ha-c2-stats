@@ -74,6 +74,11 @@ class Workout:
         )
 
     @property
+    def total_distance(self) -> int:
+        """Work plus rest metres, which is what the Logbook's totals count."""
+        return self.distance + self.rest_distance
+
+    @property
     def pace_500m(self) -> float | None:
         """Seconds per 500m over the work portion."""
         if not self.distance or not self.time:
@@ -133,6 +138,7 @@ def season_start(day: date) -> date:
 class Totals:
     """Aggregates for one machine type, or for all of them."""
 
+    # Distances are work plus rest, matching the Logbook website.
     lifetime_distance: int = 0
     lifetime_rest_distance: int = 0
     lifetime_time: float = 0.0
@@ -191,19 +197,19 @@ def summarize(workouts: list[Workout], now: datetime) -> Summary:
         local = w.start.astimezone(now.tzinfo)
         for key in (ALL, w.type):
             t = totals.setdefault(key, Totals())
-            t.lifetime_distance += w.distance
+            t.lifetime_distance += w.total_distance
             t.lifetime_rest_distance += w.rest_distance
             t.lifetime_time += w.time
             t.workout_count += 1
             t.last_workout = w
             if local >= periods.season:
-                t.season_distance += w.distance
+                t.season_distance += w.total_distance
             if local >= periods.year:
-                t.year_distance += w.distance
+                t.year_distance += w.total_distance
             if local >= periods.month:
-                t.month_distance += w.distance
+                t.month_distance += w.total_distance
             if local >= periods.week:
-                t.week_distance += w.distance
+                t.week_distance += w.total_distance
             if local >= periods.today:
-                t.today_distance += w.distance
+                t.today_distance += w.total_distance
     return Summary(totals=totals, periods=periods)

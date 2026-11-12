@@ -26,7 +26,7 @@ async def async_get_config_entry_diagnostics(
         "count_by_workout_type": dict(Counter(w.workout_type for w in workouts)),
         "totals": {
             machine: {
-                "work_distance": t.lifetime_distance,
+                "total_distance": t.lifetime_distance,
                 "rest_distance": t.lifetime_rest_distance,
                 "workouts": t.workout_count,
             }
