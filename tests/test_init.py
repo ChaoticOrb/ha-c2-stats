@@ -125,6 +125,17 @@ async def test_setup_sensors_and_pagination(
     lifetime = hass.states.get("sensor.concept2_test_rower_lifetime_distance")
     assert lifetime.attributes["work_distance"] == 13000
     assert lifetime.attributes["rest_distance"] == 400
+    assert lifetime.attributes["statistic_id"] == "concept2_logbook:distance_42"
+    # The card finds entities by translation key.
+    from homeassistant.helpers import entity_registry as er
+
+    registry = er.async_get(hass)
+    assert (
+        registry.async_get(
+            "sensor.concept2_test_rower_lifetime_distance"
+        ).translation_key
+        == "lifetime_distance"
+    )
     assert hass.states.get("sensor.concept2_test_rower_daily_streak").state == "1"
     assert hass.states.get("sensor.concept2_test_rower_workouts_this_week").state == "1"
     assert (
@@ -138,6 +149,10 @@ async def test_setup_sensors_and_pagination(
     assert pb.attributes["time"] == "20:00.0"
     assert pb.attributes["pace"] == "2:00.0"
     assert pb.attributes["season_best_time"] == "20:00.0"
+    assert pb.attributes["event"] == "5k"
+    assert pb.attributes["event_kind"] == "distance"
+    assert pb.attributes["event_target"] == 5000
+    assert pb.attributes["machine"] == "rower"
     assert hass.states.get("sensor.concept2_test_rower_skierg_5k_pb") is None
     last = hass.states.get("sensor.concept2_test_rower_last_workout")
     assert last.state == "2026-11-11T12:00:00+00:00"
@@ -379,3 +394,29 @@ async def test_buttons_and_options(
     await hass.async_block_till_done()
     assert config_entry.options == {"scan_interval": 10}
     assert config_entry.runtime_data.update_interval == timedelta(minutes=10)
+
+
+async def test_card_registered_when_frontend_loaded(
+    hass: HomeAssistant,
+) -> None:
+    """The bundled card is served and added to every dashboard."""
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from custom_components.concept2_logbook import CARD_URL_BASE, async_setup
+
+    hass.config.components.add("frontend")
+    hass.http = MagicMock()
+    hass.http.async_register_static_paths = AsyncMock()
+    with patch("homeassistant.components.frontend.add_extra_js_url") as add_js:
+        assert await async_setup(hass, {})
+    (configs,) = hass.http.async_register_static_paths.call_args.args
+    assert configs[0].url_path == CARD_URL_BASE
+    assert configs[0].path.endswith("frontend/concept2-logbook-card.js")
+    url = add_js.call_args.args[1]
+    assert url.startswith(f"{CARD_URL_BASE}?v=")
+
+
+async def test_card_skipped_without_frontend(hass: HomeAssistant) -> None:
+    from custom_components.concept2_logbook import async_setup
+
+    assert await async_setup(hass, {})

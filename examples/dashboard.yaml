@@ -7,6 +7,11 @@ views:
   - title: Rowing
     path: rowing
     cards:
+      # The bundled card covers totals, goals, activity, streaks and PBs.
+      - type: custom:concept2-logbook-card
+        weekly_goal: 30000
+        season_goal: 1000000
+
       - type: entities
         title: Totals
         entities:

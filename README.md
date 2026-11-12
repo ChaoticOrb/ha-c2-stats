@@ -2,6 +2,8 @@
 
 A Home Assistant custom integration that pulls your workouts from the [Concept2 Logbook](https://log.concept2.com) and exposes them as sensors and long-term statistics.
 
+> **Unofficial project.** This integration is not made, endorsed or supported by Concept2, Inc. It uses the public Concept2 Logbook API with your own API key. Please report problems in this repository's [issues](https://github.com/ChaoticOrb/ha-c2-stats/issues), not to Concept2. Concept2 and its product names are trademarks of Concept2, Inc.
+
 ## What you get
 
 One device per Logbook account with these sensors:
@@ -32,6 +34,38 @@ The integration also writes your full Logbook history into Home Assistant's long
 For each machine you get a PB sensor for every standard Concept2 event you have done: 100m, 500m, 1k, 2k, 5k, 6k, 10k, half marathon and marathon (plus 4k, 20k and 100k), and 1, 4, 30 and 60 minutes. A sensor only appears once you have a qualifying result, so you won't see a 100k PB unless you've rowed one.
 
 Only pieces set up on the monitor as that exact distance or time count: a "Single Distance" 2000m piece counts towards the 2k PB, but a 2k inside a 5k, a 2000m Just Row, an interval workout or a manually entered result with no workout type does not. Distance events show your best time as M:SS.t (or H:MM:SS.t), time events show your best distance in metres. Attributes give the time in seconds, pace, date, and your best for the current season.
+
+## Dashboard card
+
+The integration includes a dashboard card that loads automatically, so there's no extra resource to add. Edit a dashboard, click **Add card** and search for **Concept2 Logbook**.
+
+![The Concept2 Logbook card in light and dark themes](docs/card.png)
+
+It shows, in one card:
+
+- **Totals:** lifetime metres plus season, month and week.
+- **Goals:** optional weekly and season targets with a progress bar. The tick on each bar marks where you'd be at an even pace, and the line underneath says how far ahead or behind that you are.
+- **Activity:** metres per day for the last 7 to 90 days, taken from the full-history statistics. Hover or tap a bar to see that day.
+- **Streaks:** daily and weekly streaks with your bests, workouts this week, and when you last trained.
+- **Personal bests:** for one machine, with pace, date, and either a "This season" badge or your season best.
+
+Everything is set in the visual editor. In YAML:
+
+```yaml
+type: custom:concept2-logbook-card
+title: Rowing
+weekly_goal: 30000      # metres, optional
+season_goal: 1000000    # metres, optional
+chart_days: 28          # 7 to 90
+machine: rower          # which machine's PBs to show; defaults to the one with most PBs
+show_totals: true
+show_chart: true
+show_streaks: true
+show_pbs: true
+# device_id: only needed if you've added more than one Logbook account
+```
+
+The card uses your theme's colours, and it finds its sensors on its own, so renaming entities won't break it. To preview it without Home Assistant, serve the repository root (`python3 -m http.server`) and open `dev/card-preview.html`.
 
 ## How syncing works
 

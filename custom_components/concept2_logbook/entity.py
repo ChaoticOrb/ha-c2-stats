@@ -20,6 +20,10 @@ class Concept2Entity(CoordinatorEntity[Concept2Coordinator]):
         super().__init__(coordinator)
         user_id = coordinator.data.user["id"]
         self._attr_unique_id = f"{user_id}_{key}"
+        # Lets the dashboard card find its entities through the entity
+        # registry regardless of what the user renames them to. No entity
+        # translations exist for these keys, so names are unaffected.
+        self._attr_translation_key = key
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, str(user_id))},
             name=f"Concept2 {coordinator.config_entry.title}",
