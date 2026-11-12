@@ -35,6 +35,38 @@ For each machine you get a PB sensor for every standard Concept2 event you have 
 
 Only pieces set up on the monitor as that exact distance or time count: a "Single Distance" 2000m piece counts towards the 2k PB, but a 2k inside a 5k, a 2000m Just Row, an interval workout or a manually entered result with no workout type does not. Distance events show your best time as M:SS.t (or H:MM:SS.t), time events show your best distance in metres. Attributes give the time in seconds, pace, date, and your best for the current season.
 
+## Dashboard card
+
+The integration includes a dashboard card that loads automatically, so there's no extra resource to add. Edit a dashboard, click **Add card** and search for **Concept2 Logbook**.
+
+![The Concept2 Logbook card in light and dark themes](docs/card.png)
+
+It shows, in one card:
+
+- **Totals:** lifetime metres plus season, month and week.
+- **Goals:** optional weekly and season targets with a progress bar. The tick on each bar marks where you'd be at an even pace, and the line underneath says how far ahead or behind that you are.
+- **Activity:** metres per day for the last 7 to 90 days, taken from the full-history statistics. Hover or tap a bar to see that day.
+- **Streaks:** daily and weekly streaks with your bests, workouts this week, and when you last trained.
+- **Personal bests:** for one machine, with pace, date, and either a "This season" badge or your season best.
+
+Everything is set in the visual editor. In YAML:
+
+```yaml
+type: custom:concept2-logbook-card
+title: Rowing
+weekly_goal: 30000      # metres, optional
+season_goal: 1000000    # metres, optional
+chart_days: 28          # 7 to 90
+machine: rower          # which machine's PBs to show; defaults to the one with most PBs
+show_totals: true
+show_chart: true
+show_streaks: true
+show_pbs: true
+# device_id: only needed if you've added more than one Logbook account
+```
+
+The card uses your theme's colours, and it finds its sensors on its own, so renaming entities won't break it. To preview it without Home Assistant, serve the repository root (`python3 -m http.server`) and open `dev/card-preview.html`.
+
 ## How syncing works
 
 Every 30 minutes the integration asks the Logbook only for results created or updated since the last check. Once a day it pulls the full list so deleted results drop out. Results are cached in `.storage/concept2_logbook.<entry id>`, so a Concept2 outage leaves the last known values in place instead of making everything unavailable.

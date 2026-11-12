@@ -31,6 +31,7 @@ from .models import (
     Workout,
     format_seconds,
 )
+from .statistics import statistic_id
 
 PARALLEL_UPDATES = 0
 
@@ -335,6 +336,7 @@ class TotalsSensor(Concept2Entity, SensorEntity):
             return {
                 "work_distance": t.lifetime_distance - t.lifetime_rest_distance,
                 "rest_distance": t.lifetime_rest_distance,
+                "statistic_id": statistic_id(self._data.user["id"], self._machine),
             }
         if key == "workout_count" and self._machine == ALL:
             return {"logbook_reported_count": self.coordinator.reported_total}
@@ -458,6 +460,10 @@ class PersonalBestSensor(Concept2Entity, SensorEntity):
             "pace": pb.best.pace_display,
             "date": pb.best.start.isoformat(),
             "result_id": pb.best.id,
+            "machine": self._key[0],
+            "event": self._event.label,
+            "event_kind": self._event.kind,
+            "event_target": self._event.target,
         }
         season = pb.season_best
         attrs["season_best_time"] = format_seconds(season.time) if season else None

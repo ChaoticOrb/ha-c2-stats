@@ -1,6 +1,10 @@
 {
   "domain": "concept2_logbook",
   "name": "Concept2 Logbook",
+  "after_dependencies": [
+    "frontend",
+    "http"
+  ],
   "categories": [
     "health_wellbeing"
   ],
@@ -17,5 +21,5 @@
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/ChaoticOrb/ha-c2-stats/issues",
   "requirements": [],
-  "version": "0.4.1"
+  "version": "0.5.0"
 }
