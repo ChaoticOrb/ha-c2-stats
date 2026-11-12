@@ -11,6 +11,7 @@ from homeassistant.components.recorder import Recorder
 from homeassistant.components.recorder.statistics import statistics_during_period
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
+from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.setup import async_setup_component
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import (
@@ -314,3 +315,67 @@ async def test_diagnostics(
     }
     assert diag["zero_distance_workouts"] == 1
     assert "token" not in str(diag)
+
+
+async def test_buttons_and_options(
+    hass: HomeAssistant,
+    setup_credentials: None,
+    config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+    freezer: FrozenDateTimeFactory,
+) -> None:
+    freezer.move_to("2026-11-11 17:00:00+00:00")
+    aioclient_mock.get(f"{API_BASE}/users/me", json={"data": USER})
+    aioclient_mock.get(
+        RESULTS_URL,
+        params={"number": 250, "page": 1},
+        json=page([result(1, "2026-11-10 07:00:00", 5000, 12000)]),
+    )
+    await _setup(hass, config_entry)
+    coordinator = config_entry.runtime_data
+    assert coordinator.update_interval == timedelta(minutes=30)
+
+    # Sync now: an incremental fetch.
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(
+        RESULTS_URL,
+        params={"number": 250, "page": 1, "updated_after": "2026-11-11 15:00:00"},
+        json=page([result(2, "2026-11-11 11:00:00", 2000, 4800)]),
+    )
+    await hass.services.async_call(
+        "button",
+        "press",
+        {"entity_id": "button.concept2_test_rower_sync_now"},
+        blocking=True,
+    )
+    assert "updated_after" in str(aioclient_mock.mock_calls[0][1])
+    lifetime = "sensor.concept2_test_rower_lifetime_distance"
+    assert hass.states.get(lifetime).state == "7000"
+
+    # Full resync: fetches everything, so a deleted result drops out.
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(f"{API_BASE}/users/me", json={"data": USER})
+    aioclient_mock.get(
+        RESULTS_URL,
+        params={"number": 250, "page": 1},
+        json=page([result(2, "2026-11-11 11:00:00", 2000, 4800)]),
+    )
+    await hass.services.async_call(
+        "button",
+        "press",
+        {"entity_id": "button.concept2_test_rower_full_resync"},
+        blocking=True,
+    )
+    assert all("updated_after" not in str(c[1]) for c in aioclient_mock.mock_calls)
+    assert hass.states.get(lifetime).state == "2000"
+
+    # Options change the poll interval and reload the entry.
+    result_flow = await hass.config_entries.options.async_init(config_entry.entry_id)
+    assert result_flow["type"] is FlowResultType.FORM
+    result_flow = await hass.config_entries.options.async_configure(
+        result_flow["flow_id"], {"scan_interval": 10}
+    )
+    assert result_flow["type"] is FlowResultType.CREATE_ENTRY
+    await hass.async_block_till_done()
+    assert config_entry.options == {"scan_interval": 10}
+    assert config_entry.runtime_data.update_interval == timedelta(minutes=10)

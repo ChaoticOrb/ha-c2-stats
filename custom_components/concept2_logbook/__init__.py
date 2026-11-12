@@ -11,7 +11,7 @@ from .api import Concept2ApiClient
 from .const import DOMAIN, STORAGE_VERSION
 from .coordinator import Concept2ConfigEntry, Concept2Coordinator
 
-PLATFORMS: list[Platform] = [Platform.SENSOR]
+PLATFORMS: list[Platform] = [Platform.BUTTON, Platform.SENSOR]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: Concept2ConfigEntry) -> bool:

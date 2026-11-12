@@ -15,13 +15,12 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import UnitOfLength, UnitOfPower, UnitOfTime
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.typing import StateType
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, MACHINE_TYPES, PACE_1000M_TYPES
-from .coordinator import Concept2ConfigEntry, Concept2Coordinator, Concept2Data
+from .const import MACHINE_TYPES, PACE_1000M_TYPES
+from .coordinator import Concept2ConfigEntry, Concept2Coordinator
+from .entity import Concept2Entity
 from .models import (
     ALL,
     PbEvent,
@@ -286,31 +285,6 @@ async def async_setup_entry(
     async_add_entities(entities)
     add_machine_sensors()
     entry.async_on_unload(coordinator.async_add_listener(add_machine_sensors))
-
-
-class Concept2Entity(CoordinatorEntity[Concept2Coordinator]):
-    """Base entity, one device per Logbook account."""
-
-    _attr_has_entity_name = True
-    _attr_attribution = "Data from the Concept2 Logbook"
-
-    def __init__(self, coordinator: Concept2Coordinator, key: str) -> None:
-        """Initialize."""
-        super().__init__(coordinator)
-        user_id = coordinator.data.user["id"]
-        self._attr_unique_id = f"{user_id}_{key}"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, str(user_id))},
-            name=f"Concept2 {coordinator.config_entry.title}",
-            manufacturer="Concept2",
-            model="Logbook",
-            entry_type=DeviceEntryType.SERVICE,
-            configuration_url="https://log.concept2.com/log",
-        )
-
-    @property
-    def _data(self) -> Concept2Data:
-        return self.coordinator.data
 
 
 class TotalsSensor(Concept2Entity, SensorEntity):

@@ -32,5 +32,28 @@
     "create_entry": {
       "default": "Connected to the Concept2 Logbook."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Concept2 Logbook options",
+        "data": {
+          "scan_interval": "Check for new workouts every"
+        },
+        "data_description": {
+          "scan_interval": "Minutes between checks. A full resync of every result still runs once a day."
+        }
+      }
+    }
+  },
+  "entity": {
+    "button": {
+      "sync_now": {
+        "name": "Sync now"
+      },
+      "full_resync": {
+        "name": "Full resync"
+      }
+    }
   }
 }
