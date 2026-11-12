@@ -1,5 +1,7 @@
 # ha-c2-stats
 
+[![Open your Home Assistant instance and open this repository in the Marketplace.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=ChaoticOrb&repository=ha-c2-stats&category=integration)
+
 A Home Assistant custom integration that pulls your workouts from the [Concept2 Logbook](https://log.concept2.com) and exposes them as sensors and long-term statistics.
 
 > **Unofficial project.** This integration is not made, endorsed or supported by Concept2, Inc. It uses the public Concept2 Logbook API with your own API key. Please report problems in this repository's [issues](https://github.com/ChaoticOrb/ha-c2-stats/issues), not to Concept2. Concept2 and its product names are trademarks of Concept2, Inc.
@@ -85,7 +87,7 @@ The integration only asks for `user:read,results:read`. Concept2's docs say appl
 
 ### 2. Install the integration
 
-**HACS:** add `https://github.com/ChaoticOrb/ha-c2-stats` as a custom repository (category: Integration), install **Concept2 Logbook**, restart Home Assistant.
+**Marketplace or HACS:** click the badge at the top of this page to open the repository in your Home Assistant. It opens the Marketplace on Home Assistant 2026.11 and later, and HACS on older versions. Or add `https://github.com/ChaoticOrb/ha-c2-stats` as a custom repository (category: Integration) yourself. Install **Concept2 Logbook**, then restart Home Assistant.
 
 **Manual:** copy `custom_components/concept2_logbook` into your Home Assistant `config/custom_components/` folder and restart.
 
