@@ -48,7 +48,7 @@ def build_statistics(
     buckets: dict[datetime, int] = defaultdict(int)
     for w in workouts:
         if machine == ALL or w.type == machine:
-            buckets[_hour(w.start)] += w.distance
+            buckets[_hour(w.start)] += w.total_distance
     hours = set(buckets)
     rows: list[StatisticData] = []
     running = 0

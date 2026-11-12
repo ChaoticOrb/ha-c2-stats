@@ -96,7 +96,7 @@ async def test_setup_sensors_and_pagination(
     assert config_entry.state is ConfigEntryState.LOADED
 
     assert (
-        hass.states.get("sensor.concept2_test_rower_lifetime_distance").state == "13000"
+        hass.states.get("sensor.concept2_test_rower_lifetime_distance").state == "13400"
     )
     assert hass.states.get("sensor.concept2_test_rower_week_distance").state == "5000"
     assert (
@@ -105,14 +105,14 @@ async def test_setup_sensors_and_pagination(
     )
     assert (
         hass.states.get("sensor.concept2_test_rower_skierg_season_distance").state
-        == "8000"
+        == "8400"
     )
     workouts = hass.states.get("sensor.concept2_test_rower_workouts")
     assert workouts.state == "2"
     assert workouts.attributes["logbook_reported_count"] == 2
     lifetime = hass.states.get("sensor.concept2_test_rower_lifetime_distance")
+    assert lifetime.attributes["work_distance"] == 13000
     assert lifetime.attributes["rest_distance"] == 400
-    assert lifetime.attributes["work_plus_rest_distance"] == 13400
     last = hass.states.get("sensor.concept2_test_rower_last_workout")
     assert last.state == "2026-11-11T12:00:00+00:00"
     assert last.attributes["pace"] == "2:00.0"
@@ -136,8 +136,8 @@ async def test_setup_sensors_and_pagination(
         None,
         {"sum", "state"},
     )
-    assert [r["sum"] for r in stats["concept2_logbook:distance_42"]] == [8000, 13000]
-    assert [r["sum"] for r in stats["concept2_logbook:skierg_distance_42"]] == [8000]
+    assert [r["sum"] for r in stats["concept2_logbook:distance_42"]] == [8400, 13400]
+    assert [r["sum"] for r in stats["concept2_logbook:skierg_distance_42"]] == [8400]
 
 
 async def test_incremental_then_daily_full_sync(
@@ -275,7 +275,7 @@ async def test_diagnostics(
     assert diag["logbook_reported_count"] == 3
     assert diag["cached_count"] == 2
     assert diag["totals"]["all"] == {
-        "work_distance": 5000,
+        "total_distance": 5150,
         "rest_distance": 150,
         "workouts": 2,
     }

@@ -49,7 +49,7 @@ Concept2 refresh tokens last a year and are rotated on every refresh, so you sho
 
 ## Things to know
 
-- Totals use each result's `distance` field, which for interval workouts is work distance only. I have not confirmed whether the Logbook's own lifetime metres figure also counts rest distance, so the lifetime number may differ slightly from the Logbook site if you do a lot of intervals with rest metres.
+- All distance totals and the long-term statistics include rest metres from interval workouts, which matches the Logbook website's lifetime total. The Lifetime distance sensor has `work_distance` and `rest_distance` attributes if you want them separately. The Last workout distance sensor is work distance only.
 - Average power uses Concept2's pace-to-watts formula (2.80 / pace³) and is only reported for RowErg and SkiErg family machines.
 - Pace is a number in seconds per 500m so it can be graphed. The `pace` attribute on the Last workout sensor is formatted as M:SS.t, per 1000m for the BikeErg.
 - Results with no timezone recorded are treated as being in Home Assistant's timezone.
