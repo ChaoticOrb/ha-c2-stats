@@ -8,7 +8,7 @@
  * Unofficial. Not made, endorsed or supported by Concept2, Inc.
  */
 
-const CARD_VERSION = "0.5.0";
+const CARD_VERSION = "0.5.1";
 const DOMAIN = "concept2_logbook";
 
 const MACHINE_NAMES = {
