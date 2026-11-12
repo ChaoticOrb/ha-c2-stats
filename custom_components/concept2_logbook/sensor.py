@@ -20,7 +20,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.typing import StateType
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, MACHINE_TYPES
+from .const import DOMAIN, MACHINE_TYPES, PACE_1000M_TYPES
 from .coordinator import Concept2ConfigEntry, Concept2Coordinator, Concept2Data
 from .models import (
     ALL,
@@ -50,6 +50,9 @@ class LastWorkoutSensorDescription(SensorEntityDescription):
     """A sensor computed from the most recent workout."""
 
     value_fn: Callable[[Workout], StateType | datetime]
+    # For values shown as M:SS.t text, the raw number of seconds, exposed as
+    # an attribute for automations and templates.
+    seconds_fn: Callable[[Workout], float | None] | None = None
 
 
 def _distance(
@@ -200,19 +203,17 @@ LAST_WORKOUT_SENSORS: tuple[LastWorkoutSensorDescription, ...] = (
     LastWorkoutSensorDescription(
         key="last_workout_time",
         name="Last workout time",
-        native_unit_of_measurement=UnitOfTime.SECONDS,
-        device_class=SensorDeviceClass.DURATION,
-        state_class=SensorStateClass.MEASUREMENT,
-        suggested_display_precision=1,
-        value_fn=lambda w: w.time,
+        icon="mdi:timer-outline",
+        value_fn=lambda w: format_seconds(w.time),
+        seconds_fn=lambda w: w.time,
     ),
     LastWorkoutSensorDescription(
         key="last_workout_pace",
         name="Last workout pace",
-        native_unit_of_measurement="s/500m",
-        state_class=SensorStateClass.MEASUREMENT,
-        suggested_display_precision=1,
-        value_fn=lambda w: round(w.pace_500m, 1) if w.pace_500m else None,
+        icon="mdi:speedometer",
+        # Per 500m, or per 1000m on the BikeErg.
+        value_fn=lambda w: w.pace_display,
+        seconds_fn=lambda w: round(w.pace_500m, 1) if w.pace_500m else None,
     ),
     LastWorkoutSensorDescription(
         key="last_workout_watts",
@@ -399,7 +400,17 @@ class LastWorkoutSensor(Concept2Entity, SensorEntity):
     def extra_state_attributes(self) -> dict[str, Any] | None:
         """Full detail of the last workout on the timestamp sensor only."""
         workout = self._workout
-        if self.entity_description.key != "last_workout" or workout is None:
+        if workout is None:
+            return None
+        seconds_fn = self.entity_description.seconds_fn
+        if seconds_fn is not None:
+            if self.entity_description.key == "last_workout_pace":
+                return {
+                    "per": "1000m" if workout.type in PACE_1000M_TYPES else "500m",
+                    "seconds_per_500m": seconds_fn(workout),
+                }
+            return {"seconds": seconds_fn(workout)}
+        if self.entity_description.key != "last_workout":
             return None
         return {
             "result_id": workout.id,
@@ -425,7 +436,6 @@ class PersonalBestSensor(Concept2Entity, SensorEntity):
     count.
     """
 
-    _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_icon = "mdi:trophy"
 
     def __init__(
@@ -436,11 +446,8 @@ class PersonalBestSensor(Concept2Entity, SensorEntity):
         self._key = (machine, event.key)
         self._event = event
         self._attr_name = f"{MACHINE_TYPES.get(machine, machine)} {event.label} PB"
-        if event.kind == "distance":
-            self._attr_device_class = SensorDeviceClass.DURATION
-            self._attr_native_unit_of_measurement = UnitOfTime.SECONDS
-            self._attr_suggested_display_precision = 1
-        else:
+        if event.kind == "time":
+            self._attr_state_class = SensorStateClass.MEASUREMENT
             self._attr_device_class = SensorDeviceClass.DISTANCE
             self._attr_native_unit_of_measurement = UnitOfLength.METERS
             self._attr_suggested_display_precision = 0
@@ -454,14 +461,15 @@ class PersonalBestSensor(Concept2Entity, SensorEntity):
         """Unavailable if the qualifying results were deleted."""
         return super().available and self._pb is not None
 
-    def _value(self, w: Workout) -> float:
-        return w.time if self._event.kind == "distance" else w.distance
-
     @property
     def native_value(self) -> StateType:
-        """Return the all-time best."""
+        """Return the all-time best: M:SS.t for distance events, metres for time."""
         pb = self._pb
-        return self._value(pb.best) if pb else None
+        if pb is None:
+            return None
+        if self._event.kind == "distance":
+            return format_seconds(pb.best.time)
+        return pb.best.distance
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
@@ -470,6 +478,7 @@ class PersonalBestSensor(Concept2Entity, SensorEntity):
         if pb is None:
             return None
         attrs: dict[str, Any] = {
+            "seconds": pb.best.time,
             "time": format_seconds(pb.best.time),
             "distance_m": pb.best.distance,
             "pace": pb.best.pace_display,
