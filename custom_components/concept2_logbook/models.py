@@ -7,7 +7,13 @@ from datetime import date, datetime, timedelta, tzinfo
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from .const import PACE_1000M_TYPES
+from .const import (
+    PACE_1000M_TYPES,
+    PB_DISTANCE_WORKOUT_TYPE,
+    PB_DISTANCES,
+    PB_TIME_WORKOUT_TYPE,
+    PB_TIMES_MIN,
+)
 
 ALL = "all"
 
@@ -176,12 +182,78 @@ class Period:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class PbEvent:
+    """A standard event: a fixed distance in metres or a fixed time in minutes."""
+
+    kind: str  # "distance" or "time"
+    target: int
+
+    @property
+    def key(self) -> str:
+        """Stable id fragment, e.g. 2000m or 30min."""
+        return f"{self.target}m" if self.kind == "distance" else f"{self.target}min"
+
+    @property
+    def label(self) -> str:
+        """Display label."""
+        names = {21097: "Half marathon", 42195: "Marathon"}
+        if self.kind == "distance":
+            if self.target in names:
+                return names[self.target]
+            return (
+                f"{self.target}m"
+                if self.target < 1000 or self.target % 1000
+                else f"{self.target // 1000}k"
+            )
+        return f"{self.target} min"
+
+    def qualifies(self, w: Workout) -> bool:
+        """True if the workout was set up as exactly this piece."""
+        if self.kind == "distance":
+            return (
+                w.workout_type == PB_DISTANCE_WORKOUT_TYPE
+                and w.distance == self.target
+                and w.time > 0
+            )
+        return (
+            w.workout_type == PB_TIME_WORKOUT_TYPE
+            and round(w.time * 10) == self.target * 600
+            and w.distance > 0
+        )
+
+    def better(self, a: Workout, b: Workout | None) -> bool:
+        """True if a beats b. Ties keep the earlier result."""
+        if b is None:
+            return True
+        if self.kind == "distance":
+            return a.time < b.time
+        return a.distance > b.distance
+
+
+PB_EVENTS: tuple[PbEvent, ...] = (
+    *(PbEvent("distance", d) for d in PB_DISTANCES),
+    *(PbEvent("time", t) for t in PB_TIMES_MIN),
+)
+
+
+@dataclass(slots=True)
+class PersonalBest:
+    """All-time and current-season best for one machine and event."""
+
+    event: PbEvent
+    best: Workout
+    season_best: Workout | None = None
+
+
 @dataclass(slots=True)
 class Summary:
     """Everything the sensors need."""
 
     totals: dict[str, Totals] = field(default_factory=dict)
     periods: Period | None = None
+    # Keyed by (machine type, event key).
+    pbs: dict[tuple[str, str], PersonalBest] = field(default_factory=dict)
 
     @property
     def machine_types(self) -> list[str]:
@@ -212,4 +284,26 @@ def summarize(workouts: list[Workout], now: datetime) -> Summary:
                 t.week_distance += w.total_distance
             if local >= periods.today:
                 t.today_distance += w.total_distance
-    return Summary(totals=totals, periods=periods)
+    return Summary(
+        totals=totals, periods=periods, pbs=personal_bests(workouts, periods.season)
+    )
+
+
+def personal_bests(
+    workouts: list[Workout], season: datetime
+) -> dict[tuple[str, str], PersonalBest]:
+    """Best result per machine and standard event, all-time and this season."""
+    pbs: dict[tuple[str, str], PersonalBest] = {}
+    for w in sorted(workouts, key=lambda w: w.start):
+        for event in PB_EVENTS:
+            if not event.qualifies(w):
+                continue
+            key = (w.type, event.key)
+            pb = pbs.get(key)
+            if pb is None:
+                pb = pbs[key] = PersonalBest(event=event, best=w)
+            elif event.better(w, pb.best):
+                pb.best = w
+            if w.start >= season and event.better(w, pb.season_best):
+                pb.season_best = w
+    return pbs

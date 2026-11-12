@@ -36,5 +36,27 @@ MACHINE_TYPES: Final = {
     "rollerski": "Rollerski",
     "multierg": "MultiErg",
 }
+# Standard Concept2 ranked events, across all machines. A PB sensor is only
+# created for an event once there is a qualifying result for it, so events a
+# machine doesn't use never show up.
+PB_DISTANCES: Final = (
+    100,
+    500,
+    1000,
+    2000,
+    4000,
+    5000,
+    6000,
+    10000,
+    20000,
+    21097,
+    42195,
+    100000,
+)
+PB_TIMES_MIN: Final = (1, 4, 30, 60)
+# Only pieces set up as a single fixed distance or time count towards PBs.
+PB_DISTANCE_WORKOUT_TYPE: Final = "FixedDistanceSplits"
+PB_TIME_WORKOUT_TYPE: Final = "FixedTimeSplits"
+
 # Bike pace is conventionally quoted per 1000m, everything else per 500m.
 PACE_1000M_TYPES: Final = {"bike"}
