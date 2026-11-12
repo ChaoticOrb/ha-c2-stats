@@ -37,6 +37,8 @@ Only pieces set up on the monitor as that exact distance or time count: a "Singl
 
 Every 30 minutes the integration asks the Logbook only for results created or updated since the last check. Once a day it pulls the full list so deleted results drop out. Results are cached in `.storage/concept2_logbook.<entry id>`, so a Concept2 outage leaves the last known values in place instead of making everything unavailable.
 
+To change how often it checks, open the integration and click **Configure** (anywhere from 5 minutes to once a day). The device also has two buttons: **Sync now** fetches new and changed results straight away, and **Full resync** pulls every result again, which is useful after deleting or editing workouts on the Logbook website.
+
 ## Setup
 
 ### 1. Register an API application with Concept2

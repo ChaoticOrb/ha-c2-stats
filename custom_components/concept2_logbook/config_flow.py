@@ -6,12 +6,26 @@ import logging
 from collections.abc import Mapping
 from typing import Any, override
 
-from homeassistant.config_entries import SOURCE_REAUTH, ConfigFlowResult
+import voluptuous as vol
+from homeassistant.config_entries import (
+    SOURCE_REAUTH,
+    ConfigEntry,
+    ConfigFlowResult,
+    OptionsFlowWithReload,
+)
 from homeassistant.const import CONF_TOKEN
-from homeassistant.helpers import aiohttp_client, config_entry_oauth2_flow
+from homeassistant.core import callback
+from homeassistant.helpers import aiohttp_client, config_entry_oauth2_flow, selector
 
 from .api import Concept2ApiClient, Concept2AuthError, Concept2Error
-from .const import DOMAIN, OAUTH_SCOPE
+from .const import (
+    CONF_SCAN_INTERVAL,
+    DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
+    MAX_SCAN_INTERVAL,
+    MIN_SCAN_INTERVAL,
+    OAUTH_SCOPE,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,6 +37,12 @@ class OAuth2FlowHandler(
 
     DOMAIN = DOMAIN
     VERSION = 1
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry) -> Concept2OptionsFlow:
+        """Return the options flow."""
+        return Concept2OptionsFlow()
 
     @property
     @override
@@ -81,3 +101,37 @@ class OAuth2FlowHandler(
             or "Concept2"
         )
         return self.async_create_entry(title=name, data=data)
+
+
+class Concept2OptionsFlow(OptionsFlowWithReload):
+    """Set how often to check the Logbook."""
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Show the options form."""
+        if user_input is not None:
+            return self.async_create_entry(
+                data={CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL])}
+            )
+        current = self.config_entry.options.get(
+            CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
+        )
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_SCAN_INTERVAL, default=current): (
+                        selector.NumberSelector(
+                            selector.NumberSelectorConfig(
+                                min=MIN_SCAN_INTERVAL,
+                                max=MAX_SCAN_INTERVAL,
+                                step=1,
+                                unit_of_measurement="minutes",
+                                mode=selector.NumberSelectorMode.BOX,
+                            )
+                        )
+                    )
+                }
+            ),
+        )

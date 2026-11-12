@@ -6,7 +6,7 @@ import hashlib
 import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -22,11 +22,12 @@ from homeassistant.util import dt as dt_util
 
 from .api import Concept2ApiClient, Concept2AuthError, Concept2Error
 from .const import (
+    CONF_SCAN_INTERVAL,
+    DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     FULL_SYNC_INTERVAL,
     INCREMENTAL_OVERLAP,
     STORAGE_VERSION,
-    UPDATE_INTERVAL,
 )
 from .models import Summary, Workout, summarize
 from .statistics import import_statistics
@@ -67,7 +68,9 @@ class Concept2Coordinator(DataUpdateCoordinator[Concept2Data]):
             _LOGGER,
             config_entry=entry,
             name=DOMAIN,
-            update_interval=UPDATE_INTERVAL,
+            update_interval=timedelta(
+                minutes=entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+            ),
         )
         self.client = client
         self._store: Store[dict[str, Any]] = Store(
@@ -147,6 +150,13 @@ class Concept2Coordinator(DataUpdateCoordinator[Concept2Data]):
             len(raw),
             len(self._results),
         )
+
+    async def async_full_resync(self) -> None:
+        """Refresh now, pulling every result rather than only recent changes."""
+        if not self._loaded:
+            await self._async_load()
+        self._last_full_sync = None
+        await self.async_refresh()
 
     async def _async_update_data(self) -> Concept2Data:
         if not self._loaded:

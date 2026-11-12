@@ -17,6 +17,10 @@ ACCEPT_HEADER: Final = "application/vnd.c2logbook.v1+json"
 PAGE_SIZE: Final = 250  # API maximum
 
 UPDATE_INTERVAL: Final = timedelta(minutes=30)
+CONF_SCAN_INTERVAL: Final = "scan_interval"  # minutes, in entry options
+DEFAULT_SCAN_INTERVAL: Final = 30
+MIN_SCAN_INTERVAL: Final = 5
+MAX_SCAN_INTERVAL: Final = 1440
 FULL_SYNC_INTERVAL: Final = timedelta(hours=24)
 # Overlap on incremental syncs so clock skew never drops a result.
 INCREMENTAL_OVERLAP: Final = timedelta(hours=2)
