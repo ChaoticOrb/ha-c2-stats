@@ -2,6 +2,8 @@
 
 A Home Assistant custom integration that pulls your workouts from the [Concept2 Logbook](https://log.concept2.com) and exposes them as sensors and long-term statistics.
 
+> **Unofficial project.** This integration is not made, endorsed or supported by Concept2, Inc. It uses the public Concept2 Logbook API with your own API key. Please report problems in this repository's [issues](https://github.com/ChaoticOrb/ha-c2-stats/issues), not to Concept2. Concept2 and its product names are trademarks of Concept2, Inc.
+
 ## What you get
 
 One device per Logbook account with these sensors:
