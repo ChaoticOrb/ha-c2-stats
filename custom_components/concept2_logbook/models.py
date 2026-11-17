@@ -42,13 +42,12 @@ class Workout:
     comments: str | None = None
 
     @classmethod
-        def from_api(
+    def from_api(
         cls,
         raw: dict[str, Any],
         default_tz: tzinfo,
         zones: Mapping[str, tzinfo] | None = None,
     ) -> Workout:
-
         """Build from an API result dict.
 
         Prefers date_utc. Falls back to the local date plus the result's own
@@ -61,7 +60,6 @@ class Workout:
         else:
             tz = (zones or {}).get(raw.get("timezone") or "", default_tz)
             start = _parse_local(raw["date"]).replace(tzinfo=tz)
-
         hr = raw.get("heart_rate") or {}
         hr_avg = hr.get("average") if isinstance(hr, dict) else None
         return cls(
