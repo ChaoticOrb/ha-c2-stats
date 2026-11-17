@@ -157,7 +157,8 @@ class Concept2Coordinator(DataUpdateCoordinator[Concept2Data]):
             await self._async_load()
         self._last_full_sync = None
         await self.async_refresh()
-        async def _async_resolve_time_zones(self) -> dict[str, tzinfo]:
+
+    async def _async_resolve_time_zones(self) -> dict[str, tzinfo]:
         """Load each distinct timezone named by a result, without blocking."""
         zones: dict[str, tzinfo] = {}
         names = {r.get("timezone") for r in self._results.values()}
