@@ -6,7 +6,7 @@ import hashlib
 import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, tzinfo
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -157,6 +157,18 @@ class Concept2Coordinator(DataUpdateCoordinator[Concept2Data]):
             await self._async_load()
         self._last_full_sync = None
         await self.async_refresh()
+        async def _async_resolve_time_zones(self) -> dict[str, tzinfo]:
+        """Load each distinct timezone named by a result, without blocking."""
+        zones: dict[str, tzinfo] = {}
+        names = {r.get("timezone") for r in self._results.values()}
+        for name in names - {None, ""}:
+            try:
+                tz = await dt_util.async_get_time_zone(name)
+            except ValueError:  # malformed name, like "../foo"
+                tz = None
+            if tz is not None:
+                zones[name] = tz
+        return zones
 
     async def _async_update_data(self) -> Concept2Data:
         if not self._loaded:
@@ -174,8 +186,9 @@ class Concept2Coordinator(DataUpdateCoordinator[Concept2Data]):
 
         assert self._user is not None
         default_tz = dt_util.get_default_time_zone()
+        zones = await self._async_resolve_time_zones()
         workouts = sorted(
-            (Workout.from_api(r, default_tz) for r in self._results.values()),
+            (Workout.from_api(r, default_tz, zones) for r in self._results.values()),
             key=lambda w: w.start,
         )
         summary = summarize(workouts, dt_util.now())
