@@ -115,3 +115,11 @@ pip install -r requirements_test.txt
 ```bash
 pytest
 ```
+
+### Releasing
+
+1. On a branch, make the change and bump `version` in `manifest.json` and `CARD_VERSION` in `frontend/concept2-logbook-card.js` to the same number. Open a PR and merge once CI is green.
+2. Publish a GitHub release from `main` tagged `v` plus that version, like `v0.5.3`. A tag alone isn't enough.
+3. The **Versions** workflow checks the tag against the manifest. If it fails, delete the release and tag, fix the mismatch and release again.
+
+The Marketplace picks up a new release within a few hours.
