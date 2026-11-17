@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta, tzinfo
+from datetime import UTC, date, datetime, timedelta, tzinfo
 from typing import Any
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .const import (
     PACE_1000M_TYPES,
@@ -42,7 +42,13 @@ class Workout:
     comments: str | None = None
 
     @classmethod
-    def from_api(cls, raw: dict[str, Any], default_tz: tzinfo) -> Workout:
+        def from_api(
+        cls,
+        raw: dict[str, Any],
+        default_tz: tzinfo,
+        zones: Mapping[str, tzinfo] | None = None,
+    ) -> Workout:
+
         """Build from an API result dict.
 
         Prefers date_utc. Falls back to the local date plus the result's own
@@ -51,15 +57,11 @@ class Workout:
         """
         start: datetime
         if raw.get("date_utc"):
-            start = _parse_local(raw["date_utc"]).replace(tzinfo=ZoneInfo("UTC"))
+            start = _parse_local(raw["date_utc"]).replace(tzinfo=UTC)
         else:
-            tz = default_tz
-            if raw.get("timezone"):
-                try:
-                    tz = ZoneInfo(raw["timezone"])
-                except (ZoneInfoNotFoundError, ValueError):
-                    pass
+            tz = (zones or {}).get(raw.get("timezone") or "", default_tz)
             start = _parse_local(raw["date"]).replace(tzinfo=tz)
+
         hr = raw.get("heart_rate") or {}
         hr_avg = hr.get("average") if isinstance(hr, dict) else None
         return cls(
