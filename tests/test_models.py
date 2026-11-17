@@ -28,7 +28,9 @@ def test_parse_prefers_date_utc() -> None:
 
 def test_parse_uses_result_timezone_then_default() -> None:
     w = Workout.from_api(
-        result(1, "2026-11-10 18:00:00", 5000, 12000, timezone="Europe/London"), TZ
+        result(1, "2026-11-10 18:00:00", 5000, 12000, timezone="Europe/London"),
+        TZ,
+        {"Europe/London": ZoneInfo("Europe/London")},
     )
     assert w.start.tzinfo == ZoneInfo("Europe/London")
     w = Workout.from_api(result(1, "2026-11-10 18:00:00", 5000, 12000), TZ)
