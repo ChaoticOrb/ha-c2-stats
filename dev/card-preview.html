@@ -79,8 +79,9 @@
   // Mock daily history: mostly rowing 4 to 5 days a week, with today's row.
   const callWS = async (msg) => {
     const start = new Date(msg.start_time);
+    const stop = msg.end_time ? new Date(Math.min(now, new Date(msg.end_time))) : now;
     const rows = [];
-    for (let d = new Date(start); d <= now; d.setDate(d.getDate() + 1)) {
+    for (let d = new Date(start); d < stop; d.setDate(d.getDate() + 1)) {
       const dow = d.getDay(), seed = (d.getDate() * 37 + d.getMonth() * 11) % 100;
       if ((dow === 0 || dow === 3) && seed < 70) continue;
       if (seed < 18) continue;
@@ -90,9 +91,12 @@
   };
   const hass = { states, entities, callWS, locale: { language: "en-GB" } };
 
+  const day = (offset) => { const d = new Date(now); d.setDate(d.getDate() + offset); return d.toISOString().slice(0, 10); };
   const variants = [
-    ["Light · goals set", "light", "", { weekly_goal: 30000, season_goal: 1000000 }],
-    ["Dark · goals set", "dark", "", { weekly_goal: 30000, season_goal: 1000000 }],
+    ["Light · goals and a challenge in progress", "light", "",
+      { weekly_goal: 30000, season_goal: 1000000, challenge_name: "Holiday Challenge", challenge_start: day(-6), challenge_end: day(21), challenge_goal: 100000 }],
+    ["Dark · season goal reached, challenge not started", "dark", "",
+      { weekly_goal: 30000, season_goal: 250000, challenge_name: "Spring Challenge", challenge_start: day(3), challenge_end: day(30), challenge_goal: 50000 }],
     ["Light · no goals, 14 days, wide", "light", "wide", { chart_days: 14 }],
   ];
   const root = document.getElementById("root");
