@@ -46,7 +46,8 @@ The integration includes a dashboard card that loads automatically, so there's n
 It shows, in one card:
 
 - **Totals:** lifetime metres plus season, month and week.
-- **Goals:** optional weekly and season targets with a progress bar. The tick on each bar marks where you'd be at an even pace, and the line underneath says how far ahead or behind that you are.
+- **Goals:** optional weekly and season targets with a progress bar. The blue fill is how far you've got. The thin tick marks where you'd be today at an even pace, which is why it sits about halfway along the season bar in November. The lines underneath say how far ahead or behind that you are and how much of the period has gone. The tick disappears once you reach the goal.
+- **Challenge:** an optional bar for a fixed-date challenge, such as Concept2's Holiday Challenge. Set a start date, end date and target in metres (and a name if you like), and it shows your metres between those dates, how far ahead or behind pace you are, the days left and the metres a day needed to finish. It only appears when the start date, end date and target are all set. It counts every machine, and both dates are included.
 - **Activity:** metres per day for the last 7 to 90 days, taken from the full-history statistics. Hover or tap a bar to see that day.
 - **Streaks:** daily and weekly streaks with your bests, workouts this week, and when you last trained.
 - **Personal bests:** for one machine, with pace, date, and either a "This season" badge or your season best.
@@ -58,6 +59,10 @@ type: custom:concept2-logbook-card
 title: Rowing
 weekly_goal: 30000      # metres, optional
 season_goal: 1000000    # metres, optional
+challenge_name: Holiday Challenge   # optional
+challenge_start: "2026-11-26"       # the challenge shows when start, end and goal are all set
+challenge_end: "2026-12-24"
+challenge_goal: 100000              # metres
 chart_days: 28          # 7 to 90
 machine: rower          # which machine's PBs to show; defaults to the one with most PBs
 show_totals: true

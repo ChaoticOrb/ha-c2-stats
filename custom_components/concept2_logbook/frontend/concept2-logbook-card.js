@@ -8,7 +8,7 @@
  * Unofficial. Not made, endorsed or supported by Concept2, Inc.
  */
 
-const CARD_VERSION = "0.5.2";
+const CARD_VERSION = "0.6.0";
 const DOMAIN = "concept2_logbook";
 
 const MACHINE_NAMES = {
@@ -56,6 +56,14 @@ const seasonBounds = (now) => {
   const year = now.getMonth() >= 4 ? now.getFullYear() : now.getFullYear() - 1;
   return [new Date(year, 4, 1), new Date(year + 1, 4, 1)];
 };
+
+/** Parse "YYYY-MM-DD" as local midnight, or null. */
+const parseDay = (value) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value ?? ""));
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+};
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 const weekBounds = (now) => {
   const start = startOfDay(now);
@@ -106,6 +114,8 @@ class Concept2LogbookCard extends HTMLElement {
     this._stats = null; // { days: [{date, value}], error }
     this._statsKey = null;
     this._statsFetchedAt = 0;
+    this._challenge = null; // { total, error }
+    this._challengeKey = null;
     this._hoverIndex = null;
   }
 
@@ -126,6 +136,7 @@ class Concept2LogbookCard extends HTMLElement {
       this._render();
     }
     this._maybeFetchStats();
+    this._maybeFetchChallenge();
   }
 
   getCardSize() {
@@ -210,6 +221,56 @@ class Concept2LogbookCard extends HTMLElement {
     }
   }
 
+  /** The challenge window and target, or null unless start, end and target are all set. */
+  _challengeConfig() {
+    const c = this._config;
+    const start = parseDay(c.challenge_start);
+    const endDay = parseDay(c.challenge_end);
+    const goal = num(c.challenge_goal);
+    if (!start || !endDay || !(goal > 0) || endDay < start) return null;
+    const end = new Date(endDay);
+    end.setDate(end.getDate() + 1); // the end date counts in full
+    return { name: c.challenge_name || "Challenge", start, endDay, end, goal };
+  }
+
+  async _maybeFetchChallenge() {
+    const ch = this._challengeConfig();
+    if (!this._hass || !ch) return;
+    const lifetime = this._state("lifetime_distance");
+    const statId = lifetime?.attributes?.statistic_id;
+    if (!statId) return;
+    if (new Date() < ch.start) {
+      if (this._challengeKey !== "not-started") {
+        this._challengeKey = "not-started";
+        this._challenge = { total: 0 };
+        this._render();
+      }
+      return;
+    }
+    // Refetch when the window changes or a new workout changes the lifetime total.
+    const key = `${statId}|${dayKey(ch.start)}|${dayKey(ch.end)}|${lifetime.state}`;
+    if (key === this._challengeKey || this._fetchingChallenge) return;
+    this._fetchingChallenge = true;
+    this._challengeKey = key;
+    try {
+      const result = await this._hass.callWS({
+        type: "recorder/statistics_during_period",
+        start_time: ch.start.toISOString(),
+        end_time: ch.end.toISOString(),
+        statistic_ids: [statId],
+        period: "day",
+        types: ["change"],
+      });
+      const total = (result?.[statId] || []).reduce((sum, row) => sum + Math.max(0, num(row.change) || 0), 0);
+      this._challenge = { total };
+    } catch (err) {
+      this._challenge = { total: null, error: err?.message || String(err) };
+    } finally {
+      this._fetchingChallenge = false;
+      this._render();
+    }
+  }
+
   _render() {
     if (!this._config || !this._hass) return;
     this._entities = findEntities(this._hass, this._config.device_id);
@@ -221,6 +282,7 @@ class Concept2LogbookCard extends HTMLElement {
     } else {
       body = [
         c.show_totals ? this._renderTotals() : "",
+        this._renderChallenge(),
         c.show_chart ? this._renderChart() : "",
         c.show_streaks ? this._renderStreaks() : "",
         c.show_pbs ? this._renderPbs() : "",
@@ -260,10 +322,10 @@ class Concept2LogbookCard extends HTMLElement {
 
     const goals = [];
     if (num(c.weekly_goal) > 0) {
-      goals.push(this._goalBar("Weekly goal", this._value("week_distance"), num(c.weekly_goal), weekBounds(now), now));
+      goals.push(this._goalBar("Weekly goal", this._value("week_distance"), num(c.weekly_goal), weekBounds(now), now, "week"));
     }
     if (num(c.season_goal) > 0) {
-      goals.push(this._goalBar("Season goal", this._value("season_distance"), num(c.season_goal), seasonBounds(now), now));
+      goals.push(this._goalBar("Season goal", this._value("season_distance"), num(c.season_goal), seasonBounds(now), now, "season"));
     }
 
     return `
@@ -277,28 +339,83 @@ class Concept2LogbookCard extends HTMLElement {
       </section>`;
   }
 
-  _goalBar(label, value, goal, [start, end], now) {
+  /**
+   * A goal bar with an even-pace marker.
+   * periodName names the window in the status line ("week", "season", ...).
+   * extra is appended to the status line while the goal is in progress.
+   */
+  _goalBar(label, value, goal, [start, end], now, periodName, extra = "") {
     const done = value || 0;
     const pct = Math.min(100, (done / goal) * 100);
     const elapsed = Math.min(1, Math.max(0, (now - start) / (end - start)));
-    const expected = goal * elapsed;
-    const diff = done - expected;
-    let pace;
-    if (done >= goal) pace = `<span class="good">Goal reached</span>`;
-    else if (diff >= 0) pace = `<span class="good">${this._fmt(diff)} m ahead of pace</span>`;
-    else pace = `<span class="behind">${this._fmt(-diff)} m behind pace</span>`;
+    const reached = done >= goal;
+    const notStarted = now < start;
+    const over = now >= end;
+    const diff = done - goal * elapsed;
+
+    let status;
+    if (reached) status = `<span class="good">Goal reached</span>`;
+    else if (notStarted) status = `Starts in ${this._days(Math.ceil((start - now) / DAY_MS))}`;
+    else if (over) status = `<span class="behind">Finished at ${Math.round(pct)}%</span>`;
+    else {
+      const pace =
+        diff >= 0
+          ? `<span class="good">${this._fmt(diff)} m ahead of pace</span>`
+          : `<span class="behind">${this._fmt(-diff)} m behind pace</span>`;
+      status = `${Math.round(pct)}% · ${pace}<br>${Math.round(elapsed * 100)}% of the ${periodName} gone${extra}`;
+    }
+    // The marker shows where an even pace would put you today, so it only
+    // means something while the goal is still being worked towards.
+    const marker =
+      !reached && !notStarted && !over
+        ? `<div class="bar-marker" style="left:${(elapsed * 100).toFixed(1)}%" title="Where you'd be today at an even pace"></div>`
+        : "";
     return `
       <div class="goal">
         <div class="goal-row">
-          <span class="goal-label">${label}</span>
+          <span class="goal-label">${esc(label)}</span>
           <span class="goal-numbers">${this._fmt(done)} / ${this._fmt(goal)} m</span>
         </div>
         <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="${goal}" aria-valuenow="${done}" aria-label="${esc(label)}">
           <div class="bar-fill" style="width:${pct.toFixed(1)}%"></div>
-          <div class="bar-marker" style="left:${(elapsed * 100).toFixed(1)}%" title="Where you'd be at an even pace"></div>
+          ${marker}
         </div>
-        <div class="goal-pace">${Math.round(pct)}% · ${pace}</div>
+        <div class="goal-pace">${status}</div>
       </div>`;
+  }
+
+  _days(n) {
+    return `${this._fmt(n)} day${n === 1 ? "" : "s"}`;
+  }
+
+  _renderChallenge() {
+    const ch = this._challengeConfig();
+    if (!ch) return "";
+    const short = { day: "numeric", month: "short" };
+    const range = `${this._fmtDate(ch.start, short)} to ${this._fmtDate(ch.endDay, { ...short, year: "numeric" })}`;
+    let body;
+    if (!this._challenge) body = `<div class="chart-placeholder">Loading…</div>`;
+    else if (this._challenge.error) {
+      body = `<div class="chart-placeholder">Couldn't load challenge progress: ${esc(this._challenge.error)}</div>`;
+    } else {
+      const now = new Date();
+      const done = this._challenge.total;
+      let extra = "";
+      if (now >= ch.start && now < ch.end && done < ch.goal) {
+        // Days left including today.
+        const daysLeft = Math.max(1, Math.ceil((ch.end - startOfDay(now)) / DAY_MS));
+        extra = `<br>${this._days(daysLeft)} left · ${this._fmt((ch.goal - done) / daysLeft)} m a day to finish`;
+      }
+      body = this._goalBar(ch.name, done, ch.goal, [ch.start, ch.end], now, "challenge", extra);
+    }
+    return `
+      <section class="challenge">
+        <div class="challenge-head">
+          <div class="section-title">${esc(ch.name)}</div>
+          <div class="challenge-dates">${esc(range)}</div>
+        </div>
+        ${body}
+      </section>`;
   }
 
   _renderChart() {
@@ -498,6 +615,11 @@ const STYLES = `
   .bar-fill { height: 100%; border-radius: 4px; background: var(--primary-color); transition: width 0.4s ease; }
   .bar-marker { position: absolute; top: -3px; width: 2px; height: 14px; margin-left: -1px; border-radius: 1px; background: var(--primary-text-color); opacity: 0.55; }
   .goal-pace { font-size: 0.78rem; color: var(--secondary-text-color); margin-top: 5px; }
+  .challenge-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .challenge-dates { font-size: 0.78rem; color: var(--secondary-text-color); }
+  .challenge .goal { margin-top: 8px; }
+  .challenge .goal-label { display: none; }
+  .challenge .goal-row { justify-content: flex-end; }
   .good { color: var(--success-color, #43a047); }
   .behind { color: var(--warning-color, #ffa600); }
 
@@ -543,6 +665,10 @@ const EDITOR_LABELS = {
   weekly_goal: "Weekly goal (metres, optional)",
   season_goal: "Season goal (metres, optional)",
   chart_days: "Days in activity chart",
+  challenge_name: "Challenge name (optional)",
+  challenge_start: "Challenge start date",
+  challenge_end: "Challenge end date",
+  challenge_goal: "Challenge target (metres)",
   show_totals: "Show totals and goals",
   show_chart: "Show activity chart",
   show_streaks: "Show streaks",
@@ -573,6 +699,17 @@ class Concept2LogbookCardEditor extends HTMLElement {
       ...(options.length > 1 ? [{ name: "machine", selector: { select: { options, mode: "dropdown" } } }] : []),
       { name: "weekly_goal", selector: { number: { min: 0, step: 1000, mode: "box", unit_of_measurement: "m" } } },
       { name: "season_goal", selector: { number: { min: 0, step: 10000, mode: "box", unit_of_measurement: "m" } } },
+      {
+        type: "expandable",
+        name: "",
+        title: "Challenge (shows when start, end and target are all set)",
+        schema: [
+          { name: "challenge_name", selector: { text: {} } },
+          { name: "challenge_start", selector: { date: {} } },
+          { name: "challenge_end", selector: { date: {} } },
+          { name: "challenge_goal", selector: { number: { min: 0, step: 1000, mode: "box", unit_of_measurement: "m" } } },
+        ],
+      },
       { name: "chart_days", selector: { number: { min: 7, max: 90, step: 1, mode: "slider" } } },
       { name: "show_totals", selector: { boolean: {} } },
       { name: "show_chart", selector: { boolean: {} } },
@@ -588,7 +725,10 @@ class Concept2LogbookCardEditor extends HTMLElement {
       this._form.computeLabel = (s) => EDITOR_LABELS[s.name] || s.name;
       this._form.addEventListener("value-changed", (ev) => {
         const config = { ...ev.detail.value };
-        for (const k of ["weekly_goal", "season_goal"]) {
+        for (const k of ["challenge_name", "challenge_start", "challenge_end"]) {
+          if (!config[k]) delete config[k];
+        }
+        for (const k of ["weekly_goal", "season_goal", "challenge_goal"]) {
           if (config[k] === "" || config[k] === null || config[k] === 0) delete config[k];
         }
         this._config = config;
